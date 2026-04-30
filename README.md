@@ -2,9 +2,17 @@
 
 # allama
 
-[Language: English](#english) | [简体中文](#chinese) | [繁體中文](#traditional-chinese) | [日本語](#japanese) | [Deutsch](#deutsch) | [Français](#french)
+<details open>
+<summary>🌐 Language / 语言 / 言語 / Sprache / Langue</summary>
+
+[English](#english) | [简体中文](#chinese) | [繁體中文](#traditional-chinese) | [日本語](#japanese) | [Deutsch](#deutsch) | [Français](#french)
+
+</details>
 
 ---
+
+<details open>
+<summary>🇬🇧 English</summary>
 
 <a name="english"></a>
 # allama
@@ -297,7 +305,10 @@ Security enhancements inspired by aerospace industry standards and DO-178C certi
 - [ggml](https://github.com/ggml-org/ggml) - Tensor library
 - [Ollama](https://github.com/ollama/ollama) - Model management reference
 
----
+</details>
+
+<details>
+<summary>🇨🇳 简体中文</summary>
 
 <a name="chinese"></a>
 # allama (中文)
@@ -590,7 +601,10 @@ MIT 许可证 - 与 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
 - [ggml](https://github.com/ggml-org/ggml) - 张量库
 - [Ollama](https://github.com/ollama/ollama) - 模型管理参考
 
----
+</details>
+
+<details>
+<summary>🇩🇪 Deutsch</summary>
 
 <a name="deutsch"></a>
 # allama (Deutsch)
@@ -883,7 +897,10 @@ Sicherheitsverbesserungen inspiriert von Aerospace-Industriestandards und DO-178
 - [ggml](https://github.com/ggml-org/ggml) - Tensor-Bibliothek
 - [Ollama](https://github.com/ollama/ollama) - Modell-Management-Referenz
 
----
+</details>
+
+<details>
+<summary>🇹🇼 繁體中文</summary>
 
 <a name="traditional-chinese"></a>
 # allama (繁體中文)
@@ -1176,7 +1193,10 @@ MIT 許可證 - 與 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
 - [ggml](https://github.com/ggml-org/ggml) - 張量庫
 - [Ollama](https://github.com/ollama/ollama) - 模型管理參考
 
----
+</details>
+
+<details>
+<summary>🇯🇵 日本語</summary>
 
 <a name="japanese"></a>
 # allama (日本語)
@@ -1469,7 +1489,10 @@ MIT ライセンス - [llama.cpp](https://github.com/ggml-org/llama.cpp) と同�
 - [ggml](https://github.com/ggml-org/ggml) - テンソルライブラリ
 - [Ollama](https://github.com/ollama/ollama) - モデル管理リファレンス
 
----
+</details>
+
+<details>
+<summary>🇫🇷 Français</summary>
 
 <a name="french"></a>
 # allama (Français)
@@ -1761,6 +1784,8 @@ Les améliorations de sécurité sont inspirées par les normes de l'industrie a
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) - Projet original
 - [ggml](https://github.com/ggml-org/ggml) - Bibliothèque de tenseurs
 - [Ollama](https://github.com/ollama/ollama) - Référence de gestion de modèles
+
+</details>
 
 ---
 
