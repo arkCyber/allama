@@ -1,0 +1,46 @@
+# lcov configuration for allama
+# Aerospace-level code coverage analysis
+
+# Exclude patterns
+exclude = /usr/include/*
+exclude = /Applications/*
+exclude = /Library/*
+exclude = /System/*
+exclude = */tests/*
+exclude = */examples/*
+exclude = */pocs/*
+exclude = */vendor/*
+exclude = */build/*
+exclude = */cmake/*
+exclude = */scripts/*
+
+# Include patterns
+include = *.c
+include = *.cpp
+include = *.cc
+include = *.cxx
+
+# Branch coverage
+branch_coverage = true
+
+# Function coverage
+function_coverage = true
+
+# Detail level
+detail = low
+
+# Demangle C++ symbols
+demangle_cxx = true
+
+# External tools
+rc = lcovrc
+genhtml_rc = genhtmlrc
+
+# Output format
+output_format = html
+
+# HTML generation options
+html_details = true
+html_legend = true
+html_overview = true
+html_absolute_paths = false

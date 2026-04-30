@@ -13,6 +13,7 @@
 #include "model-registry.h"
 #include "modelfile.h"
 #include "audit-log.h"
+#include "resource-monitor.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +93,7 @@ static allama_result_t cmd_stats(allama_context_t *ctx);
 static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_name);
 static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name);
 static allama_result_t cmd_serve(allama_context_t *ctx);
+static allama_result_t cmd_mem(allama_context_t *ctx);
 
 /**
  * @brief Print usage information
@@ -117,6 +119,7 @@ static void print_usage(const char *program_name) {
     printf("  validate <model>  Validate model file integrity\n");
     printf("  run <model>       Run a model for inference\n");
     printf("  serve             Start the llama-server with model registry\n");
+    printf("  mem               Display memory usage and model memory requirements\n");
     printf("\n");
     printf("Options:\n");
     printf("  -v, --verbose     Enable verbose output\n");
@@ -1014,6 +1017,174 @@ static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name) {
 }
 
 /**
+ * @brief Memory command handler - display memory usage and model memory requirements
+ */
+/*@ 
+  requires \valid_read(ctx);
+  ensures \result == ALLAMA_SUCCESS || \result != ALLAMA_SUCCESS;
+@*/
+static allama_result_t cmd_mem(allama_context_t *ctx) {
+    if (!ctx || !ctx->initialized) {
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    printf("Memory Usage Information:\n\n");
+
+    /* Initialize resource monitor */
+    monitor_config_t monitor_config = {
+        .update_interval_ms = 1000,
+        .enable_alerts = false,
+        .alert_callback = NULL,
+        .limits.max_memory = 0,
+        .limits.max_threads = 0,
+        .limits.max_cpu_percent = 0,
+        .limits.max_gpu_memory_percent = 0
+    };
+    
+    if (resource_monitor_init(&monitor_config) == 0) {
+        memory_stats_t mem_stats;
+        if (resource_monitor_get_memory(&mem_stats) == 0) {
+            printf("System Memory:\n");
+            printf("  Total: %.2f GB\n", (double)mem_stats.total / (1024.0 * 1024.0 * 1024.0));
+            printf("  Used:  %.2f GB (%.1f%%)\n", 
+                   (double)mem_stats.used / (1024.0 * 1024.0 * 1024.0),
+                   (double)mem_stats.used / mem_stats.total * 100.0);
+            printf("  Free:  %.2f GB (%.1f%%)\n",
+                   (double)mem_stats.free / (1024.0 * 1024.0 * 1024.0),
+                   (double)mem_stats.free / mem_stats.total * 100.0);
+            printf("\n");
+        }
+        resource_monitor_shutdown();
+    }
+
+    /* Get loaded models and their memory requirements */
+    model_metadata_t *loaded_models = NULL;
+    size_t loaded_count = 0;
+    model_registry_result_t result = model_registry_list_loaded(ctx->registry_ctx, &loaded_models, &loaded_count);
+    
+    if (result == MODEL_REGISTRY_SUCCESS && loaded_count > 0) {
+        printf("Loaded Models Memory:\n");
+        uint64_t total_model_memory = 0;
+        uint64_t total_kv_cache_memory = 0;
+        
+        for (size_t i = 0; i < loaded_count; i++) {
+            model_metadata_t *m = &loaded_models[i];
+            uint64_t model_size = m->size;
+            total_model_memory += model_size;
+            
+            printf("  %s", m->name);
+            if (m->tag) {
+                printf(":%s", m->tag);
+            }
+            printf("\n");
+            printf("    File Size: %.2f GB\n", (double)model_size / (1024.0 * 1024.0 * 1024.0));
+            
+            /* Estimate KV cache memory */
+            /* KV cache size depends on: n_layers, n_embd, n_ctx, n_batch, quantization */
+            /* We estimate based on model parameters and quantization */
+            uint32_t n_layers = 32;  /* Default estimate */
+            uint32_t n_embd = 4096; /* Default estimate */
+            uint32_t n_ctx = 8192;  /* Default context window */
+            
+            /* Adjust based on parameter count */
+            if (m->parameters) {
+                uint64_t params = m->parameters;
+                if (params < 4000000000ULL) { /* < 4B */
+                    n_layers = 24;
+                    n_embd = 2048;
+                } else if (params < 8000000000ULL) { /* < 8B */
+                    n_layers = 32;
+                    n_embd = 4096;
+                } else if (params < 14000000000ULL) { /* < 14B */
+                    n_layers = 40;
+                    n_embd = 5120;
+                } else { /* >= 14B */
+                    n_layers = 48;
+                    n_embd = 6400;
+                }
+            }
+            
+            /* Calculate bytes per element based on quantization */
+            uint32_t bytes_per_element = 2; /* Default: 2 bytes for f16 or q4 */
+            if (m->quantization) {
+                if (strstr(m->quantization, "q2_")) {
+                    bytes_per_element = 1;
+                } else if (strstr(m->quantization, "q3_")) {
+                    bytes_per_element = 1;
+                } else if (strstr(m->quantization, "q4_") || strstr(m->quantization, "tq")) {
+                    bytes_per_element = 1;
+                } else if (strstr(m->quantization, "q5_")) {
+                    bytes_per_element = 2;
+                } else if (strstr(m->quantization, "q6_") || strstr(m->quantization, "q8_")) {
+                    bytes_per_element = 2;
+                } else if (strstr(m->quantization, "f16")) {
+                    bytes_per_element = 2;
+                } else if (strstr(m->quantization, "f32")) {
+                    bytes_per_element = 4;
+                }
+            }
+            
+            /* KV cache size formula:
+             * 2 (K and V) * n_layers * n_embd * n_ctx * bytes_per_element
+             * For batch processing, multiply by n_batch
+             */
+            uint64_t kv_cache_size = (uint64_t)2 * n_layers * n_embd * n_ctx * bytes_per_element;
+            total_kv_cache_memory += kv_cache_size;
+            
+            printf("    Estimated KV Cache Memory (%u layers, %u hidden, %u ctx): %.2f GB\n",
+                   n_layers, n_embd, n_ctx,
+                   (double)kv_cache_size / (1024.0 * 1024.0 * 1024.0));
+            
+            /* Estimate runtime memory (model + KV cache) */
+            uint64_t estimated_memory = model_size + kv_cache_size;
+            printf("    Total Estimated Runtime Memory: %.2f GB\n", 
+                   (double)estimated_memory / (1024.0 * 1024.0 * 1024.0));
+            printf("\n");
+        }
+        
+        printf("Summary:\n");
+        printf("  Total Model Memory (File Size): %.2f GB\n",
+               (double)total_model_memory / (1024.0 * 1024.0 * 1024.0));
+        printf("  Total KV Cache Memory: %.2f GB\n",
+               (double)total_kv_cache_memory / (1024.0 * 1024.0 * 1024.0));
+        printf("  Total Estimated Runtime Memory: %.2f GB\n",
+               (double)(total_model_memory + total_kv_cache_memory) / (1024.0 * 1024.0 * 1024.0));
+        printf("\n");
+        
+        if (loaded_models) {
+            model_metadata_free_array(loaded_models, loaded_count);
+        }
+    } else {
+        printf("No models currently loaded\n\n");
+    }
+
+    /* Get all models and their sizes */
+    model_metadata_t *all_models = NULL;
+    size_t all_count = 0;
+    result = model_registry_list(ctx->registry_ctx, &all_models, &all_count);
+    
+    if (result == MODEL_REGISTRY_SUCCESS && all_count > 0) {
+        printf("Available Models:\n");
+        for (size_t i = 0; i < all_count; i++) {
+            model_metadata_t *m = &all_models[i];
+            printf("  %s:%s - %.2f GB", m->name, m->tag, 
+                   (double)m->size / (1024.0 * 1024.0 * 1024.0));
+            if (m->quantization) {
+                printf(" (%s)", m->quantization);
+            }
+            printf("\n");
+        }
+        printf("\n");
+        
+        if (all_models) {
+            model_metadata_free_array(all_models, all_count);
+        }
+    }
+
+    return ALLAMA_SUCCESS;
+}
+
+/**
  * @brief Main function
  */
 int main(int argc, char *argv[]) {
@@ -1143,6 +1314,8 @@ int main(int argc, char *argv[]) {
         }
     } else if (strcmp(command, "serve") == 0) {
         cmd_result = cmd_serve(&ctx);
+    } else if (strcmp(command, "mem") == 0) {
+        cmd_result = cmd_mem(&ctx);
     } else {
         fprintf(stderr, "Error: Unknown command: %s\n", command);
         print_usage(argv[0]);

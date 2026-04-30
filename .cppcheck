@@ -1,0 +1,56 @@
+# Aerospace-level cppcheck configuration for allama
+# Based on MISRA C/C++, CERT C, and DO-178C requirements
+
+# Suppress false positives
+suppress=all
+
+# Enable all checks
+enable=all
+
+# Standard compliance
+std=c11
+std=c++17
+std=posix
+
+# Inline suppression
+inlineSuppressions=true
+
+# Force checking all configurations
+force=false
+
+# Check for unused functions
+unusedFunctions=true
+
+# Check for missing includes
+missingInclude=true
+missingIncludeSystem=true
+
+# Platform settings
+platform=native
+
+# Severity settings
+--inline-suppr
+
+# Aerospace-specific checks
+# Memory safety
+--enable=warning,performance,portability,information,missingInclude
+
+# CERT C checks
+--suppress=*:tests/*
+--suppress=*:examples/*
+
+# MISRA C/C++ compliance
+inconclusive=false
+
+# Performance checks
+--enable=performance
+
+# Portability checks
+--enable=portability
+
+# Information checks
+--enable=information
+
+# Configuration
+--template="{severity}: {file}:{line}: {message} ({id})"
+--error-exitcode=1

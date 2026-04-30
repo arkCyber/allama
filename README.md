@@ -49,7 +49,7 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 
 ### Model Management
 - **Local Model Registry** (SQLite-based metadata storage)
-- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate)
+- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem)
 - **Modelfile Support** (model definition DSL for custom configurations)
 - **REST API** (Ollama-compatible endpoints: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
 
@@ -100,6 +100,9 @@ sudo make install
 
 # Search models
 ./bin/allama search "llama"
+
+# Display memory usage and model memory requirements
+./bin/allama mem
 
 # Start server with model registry
 ./bin/allama serve
@@ -345,7 +348,7 @@ Security enhancements inspired by aerospace industry standards and DO-178C certi
 
 ### 模型管理
 - **本地模型注册表**（基于 SQLite 的元数据存储）
-- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate）
+- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfile 支持**（自定义配置的模型定义 DSL）
 - **REST API**（Ollama 兼容端点：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
 
@@ -396,6 +399,9 @@ sudo make install
 
 # 搜索模型
 ./bin/allama search "llama"
+
+# 显示内存使用情况和模型内存需求
+./bin/allama mem
 
 # 启动带有模型注册表的服务器
 ./bin/allama serve
@@ -641,7 +647,7 @@ Dies ist eine sicherheitshärtete, aerospace-grade Version von [llama.cpp](https
 
 ### Modell-Management
 - **Lokales Modell-Register** (SQLite-basierte Metadatenspeicherung)
-- **Allama CLI** (Modell-Management-Befehle: pull, list, show, rm, cp, add, create, search, stats, validate)
+- **Allama CLI** (Modell-Management-Befehle: pull, list, show, rm, cp, add, create, search, stats, validate, mem)
 - **Modelfile-Support** (Modell-Definition-DSL für benutzerdefinierte Konfigurationen)
 - **REST API** (Ollama-kompatible Endpunkte: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
 
@@ -692,6 +698,9 @@ sudo make install
 
 # Modelle suchen
 ./bin/allama search "llama"
+
+# Speichernutzung und Modell-Speicheranforderungen anzeigen
+./bin/allama mem
 
 # Server mit Modell-Register starten
 ./bin/allama serve
@@ -937,7 +946,7 @@ Sicherheitsverbesserungen inspiriert von Aerospace-Industriestandards und DO-178
 
 ### 模型管理
 - **本地模型註冊表**（基於 SQLite 的元數據存儲）
-- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate）
+- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfile 支持**（自定義配置的模型定義 DSL）
 - **REST API**（Ollama 兼容端點：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
 
@@ -988,6 +997,9 @@ sudo make install
 
 # 搜索模型
 ./bin/allama search "llama"
+
+# 顯示內存使用情況和模型內存需求
+./bin/allama mem
 
 # 啟動帶有模型註冊表的服務器
 ./bin/allama serve
@@ -1232,10 +1244,10 @@ MIT 許可證 - 與 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
 - **信号処理**（SIGTERM/SIGINT でのクリーンシャットダウン）
 
 ### モデル管理
-- **ローカルモデルレジストリ**（SQLite ベースのメタデータストレージ）
-- **Allama CLI**（モデル管理コマンド：pull、list、show、rm、cp、add、create、search、stats、validate）
-- **Modelfile サポート**（カスタム設定用モデル定義 DSL）
-- **REST API**（Ollama 互換エンドポイント：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+- **ローカルモデルレジストリ**（SQLiteベースのメタデータストレージ）
+- **Allama CLI**（モデル管理コマンド：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
+- **Modelfileサポート**（カスタム設定用のモデル定義DSL）
+- **REST API**（Ollama互換エンドポイント：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
 
 ### パフォーマンス
 - すべての llama.cpp パフォーマンス最適化を保持
@@ -1284,6 +1296,9 @@ sudo make install
 
 # モデルを検索
 ./bin/allama search "llama"
+
+# メモリ使用量とモデルメモリ要件を表示
+./bin/allama mem
 
 # モデルレジストリ付きでサーバーを起動
 ./bin/allama serve
@@ -1527,11 +1542,11 @@ Il s'agit d'une version sécurisée et de niveau aérospatial de [llama.cpp](htt
 - **Dégradation gracieuse** (le système continue avec une fonctionnalité réduite en cas de panne)
 - **Gestion des signaux** (arrêt propre sur SIGTERM/SIGINT)
 
-### Gestion des modèles
+### Gestion de modèles
 - **Registre de modèles local** (stockage de métadonnées basé sur SQLite)
-- **Allama CLI** (commandes de gestion de modèles : pull, list, show, rm, cp, add, create, search, stats, validate)
-- **Support Modelfile** (DSL de définition de modèle pour les configurations personnalisées)
-- **REST API** (points de terminaison compatibles Ollama : /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+- **CLI Allama** (commandes de gestion de modèles : pull, list, show, rm, cp, add, create, search, stats, validate, mem)
+- **Support Modelfile** (DSL de définition de modèle pour configurations personnalisées)
+- **API REST** (points de terminaison compatibles Ollama : /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
 
 ### Performance
 - Toutes les optimisations de performance llama.cpp conservées
@@ -1580,6 +1595,9 @@ sudo make install
 
 # Rechercher des modèles
 ./bin/allama search "llama"
+
+# Afficher l'utilisation de la mémoire et les besoins en mémoire des modèles
+./bin/allama mem
 
 # Démarrer le serveur avec le registre de modèles
 ./bin/allama serve
