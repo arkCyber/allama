@@ -1,4 +1,4 @@
-# llama-cpp-turboquant
+# allama
 
 ![Security](https://img.shields.io/badge/security-aerospace--level-red)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -49,8 +49,8 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/llama-cpp-turboquant.git
-cd llama-cpp-turboquant
+git clone https://github.com/arkCyber/allama.git
+cd allama
 
 # Create build directory
 mkdir build && cd build
