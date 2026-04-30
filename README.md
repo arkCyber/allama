@@ -451,10 +451,10 @@ auth_validate_basic(username, password, &user_id);
 所有安全相关操作都会被记录：
 
 ```
-[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
-[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
-[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
-[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+[信息] [2024-01-01 12:00:00] 认证: 用户通过 API 密钥认证
+[信息] [2024-01-01 12:00:05] 代码签名: 模型签名验证成功
+[警告] [2024-01-01 12:00:10] 速率限制: 用户超过速率限制
+[错误] [2024-01-01 12:00:15] 安全违规: 检测到无效签名
 ```
 
 ## 🛡️ 容错能力
@@ -744,10 +744,10 @@ Modell-Dateien signieren und verifizieren für Integrität:
 Alle sicherheitsrelevanten Operationen werden protokolliert:
 
 ```
-[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
-[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
-[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
-[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+[INFO] [2024-01-01 12:00:00] AUTH: Benutzer über API-Schlüssel authentifiziert
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Modell-Signatur verifiziert
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: Benutzer hat Rate-Limit überschritten
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Ungültige Signatur erkannt
 ```
 
 ## 🛡️ Fehlertoleranz
@@ -1037,10 +1037,10 @@ auth_validate_basic(username, password, &user_id);
 所有安全相關操作都會被記錄：
 
 ```
-[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
-[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
-[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
-[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+[信息] [2024-01-01 12:00:00] 認證: 用戶通過 API 密鑰認證
+[信息] [2024-01-01 12:00:05] 代碼簽名: 模型簽名驗證成功
+[警告] [2024-01-01 12:00:10] 速率限制: 用戶超過速率限制
+[錯誤] [2024-01-01 12:00:15] 安全違規: 檢測到無效簽名
 ```
 
 ## 🛡️ 容錯能力
@@ -1330,10 +1330,10 @@ auth_validate_basic(username, password, &user_id);
 すべてのセキュリティ関連操作が記録：
 
 ```
-[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
-[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
-[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
-[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+[情報] [2024-01-01 12:00:00] 認証: ユーザーがAPIキーで認証されました
+[情報] [2024-01-01 12:00:05] コード署名: モデル署名が検証されました
+[警告] [2024-01-01 12:00:10] レート制限: ユーザーがレート制限を超過しました
+[エラー] [2024-01-01 12:00:15] セキュリティ違反: 無効な署名が検出されました
 ```
 
 ## 🛡️ 障害耐性
@@ -1623,10 +1623,10 @@ Signer et vérifier les fichiers de modèle pour garantir l'intégrité :
 Toutes les opérations liées à la sécurité sont enregistrées :
 
 ```
-[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
-[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
-[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
-[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+[INFO] [2024-01-01 12:00:00] AUTH: Utilisateur authentifié via clé API
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Signature de modèle vérifiée
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: Utilisateur a dépassé la limite de débit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Signature invalide détectée
 ```
 
 ## 🛡️ Tolérance aux pannes
