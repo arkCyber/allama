@@ -1,3 +1,12 @@
+<div align="center">
+
+# allama
+
+[Language: English](#english) | [中文](#chinese) | [Deutsch](#deutsch)
+
+---
+
+<a name="english"></a>
 # allama
 
 ![Security](https://img.shields.io/badge/security-aerospace--level-red)
@@ -288,587 +297,594 @@ Security enhancements inspired by aerospace industry standards and DO-178C certi
 - [ggml](https://github.com/ggml-org/ggml) - Tensor library
 - [Ollama](https://github.com/ollama/ollama) - Model management reference
 
-## Recent API changes
+---
+
+<a name="chinese"></a>
+# allama (中文)
+
+![Security](https://img.shields.io/badge/security-aerospace--level-red)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-green)
+
+**航空航天级安全增强型 LLM 推理引擎**
+
+这是 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的安全加固、航空航天级版本，具有全面的安全、容错和企业级功能，专为关键任务部署而设计。
+
+## 🚀 主要特性
+
+### 航空航天级安全
+- **全面认证**（API 密钥、JWT、Basic 认证）
+- **代码签名与验证**（基于 HMAC-SHA256）
+- **审计日志**（所有操作均记录，具有防篡改证据）
+- **速率限制**（可配置的每用户限制）
+- **资源监控**（CPU、GPU、内存跟踪）
+- **文件沙箱**（受限的文件系统访问）
+- **安全内存**（加密内存区域）
+- **GPU 隔离**（专用 GPU 资源管理）
+- **异常检测**（实时威胁检测）
+- **网络隔离**（防火墙和网络分段）
+- **备份系统**（自动状态备份和恢复）
+
+### 容错能力
+- **超时保护**（所有操作都有可配置的超时）
+- **看门狗定时器**（防止无限循环和死锁）
+- **重试机制**（指数退避处理瞬态故障）
+- **优雅降级**（系统在故障时以降低功能继续运行）
+- **信号处理**（SIGTERM/SIGINT 上的干净关闭）
+
+### 模型管理
+- **本地模型注册表**（基于 SQLite 的元数据存储）
+- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate）
+- **Modelfile 支持**（自定义配置的模型定义 DSL）
+- **REST API**（Ollama 兼容端点：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+
+### 性能
+- 保留所有 llama.cpp 性能优化
+- Metal（Apple Silicon）、CUDA（NVIDIA）、HIP（AMD）、Vulkan 支持
+- 1.5 位到 8 位量化
+- CPU+GPU 混合推理
+- 推测性解码
+
+## 📋 快速开始
+
+### 从源代码构建
 
-- [Changelog for `libllama` API](https://github.com/ggml-org/llama.cpp/issues/9289)
-- [Changelog for `llama-server` REST API](https://github.com/ggml-org/llama.cpp/issues/9291)
-
-## Hot topics
-
-- **Hugging Face cache migration: models downloaded with `-hf` are now stored in the standard Hugging Face cache directory, enabling sharing with other HF tools.**
-- **[guide : using the new WebUI of llama.cpp](https://github.com/ggml-org/llama.cpp/discussions/16938)**
-- [guide : running gpt-oss with llama.cpp](https://github.com/ggml-org/llama.cpp/discussions/15396)
-- [[FEEDBACK] Better packaging for llama.cpp to support downstream consumers 🤗](https://github.com/ggml-org/llama.cpp/discussions/15313)
-- Support for the `gpt-oss` model with native MXFP4 format has been added | [PR](https://github.com/ggml-org/llama.cpp/pull/15091) | [Collaboration with NVIDIA](https://blogs.nvidia.com/blog/rtx-ai-garage-openai-oss) | [Comment](https://github.com/ggml-org/llama.cpp/discussions/15095)
-- Multimodal support arrived in `llama-server`: [#12898](https://github.com/ggml-org/llama.cpp/pull/12898) | [documentation](./docs/multimodal.md)
-- VS Code extension for FIM completions: https://github.com/ggml-org/llama.vscode
-- Vim/Neovim plugin for FIM completions: https://github.com/ggml-org/llama.vim
-- Hugging Face Inference Endpoints now support GGUF out of the box! https://github.com/ggml-org/llama.cpp/discussions/9669
-- Hugging Face GGUF editor: [discussion](https://github.com/ggml-org/llama.cpp/discussions/9268) | [tool](https://huggingface.co/spaces/CISCai/gguf-editor)
-
-----
-
-## Quick start
-
-Getting started with llama.cpp is straightforward. Here are several ways to install it on your machine:
-
-- Install `llama.cpp` using [brew, nix or winget](docs/install.md)
-- Run with Docker - see our [Docker documentation](docs/docker.md)
-- Download pre-built binaries from the [releases page](https://github.com/ggml-org/llama.cpp/releases)
-- Build from source by cloning this repository - check out [our build guide](docs/build.md)
-
-Once installed, you'll need a model to work with. Head to the [Obtaining and quantizing models](#obtaining-and-quantizing-models) section to learn more.
-
-Example command:
-
-```sh
-# Use a local model file
-llama-cli -m my_model.gguf
-
-# Or download and run a model directly from Hugging Face
-llama-cli -hf ggml-org/gemma-3-1b-it-GGUF
-
-# Launch OpenAI-compatible API server
-llama-server -hf ggml-org/gemma-3-1b-it-GGUF
-```
-
-## Description
-
-The main goal of `allama` is to enable LLM inference with minimal setup and state-of-the-art performance on a wide
-range of hardware - locally and in the cloud.
-
-- Plain C/C++ implementation without any dependencies
-- Apple silicon is a first-class citizen - optimized via ARM NEON, Accelerate and Metal frameworks
-- AVX, AVX2, AVX512 and AMX support for x86 architectures
-- RVV, ZVFH, ZFH, ZICBOP and ZIHINTPAUSE support for RISC-V architectures
-- 1.5-bit, 2-bit, 3-bit, 4-bit, 5-bit, 6-bit, and 8-bit integer quantization for faster inference and reduced memory use
-- Custom CUDA kernels for running LLMs on NVIDIA GPUs (support for AMD GPUs via HIP and Moore Threads GPUs via MUSA)
-- Vulkan and SYCL backend support
-- CPU+GPU hybrid inference to partially accelerate models larger than the total VRAM capacity
-
-The `allama` project is the main playground for developing new features for the [ggml](https://github.com/ggml-org/ggml) library.
-
-<details>
-<summary>Models</summary>
-
-Typically finetunes of the base models below are supported as well.
-
-Instructions for adding support for new models: [HOWTO-add-model.md](docs/development/HOWTO-add-model.md)
-
-#### Text-only
-
-- [X] LLaMA 🦙
-- [x] LLaMA 2 🦙🦙
-- [x] LLaMA 3 🦙🦙🦙
-- [X] [Mistral 7B](https://huggingface.co/mistralai/Mistral-7B-v0.1)
-- [x] [Mixtral MoE](https://huggingface.co/models?search=mistral-ai/Mixtral)
-- [x] [DBRX](https://huggingface.co/databricks/dbrx-instruct)
-- [x] [Jamba](https://huggingface.co/ai21labs)
-- [X] [Falcon](https://huggingface.co/models?search=tiiuae/falcon)
-- [X] [Chinese LLaMA / Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca) and [Chinese LLaMA-2 / Alpaca-2](https://github.com/ymcui/Chinese-LLaMA-Alpaca-2)
-- [X] [Vigogne (French)](https://github.com/bofenghuang/vigogne)
-- [X] [BERT](https://github.com/ggml-org/llama.cpp/pull/5423)
-- [X] [Koala](https://bair.berkeley.edu/blog/2023/04/03/koala/)
-- [X] [Baichuan 1 & 2](https://huggingface.co/models?search=baichuan-inc/Baichuan) + [derivations](https://huggingface.co/hiyouga/baichuan-7b-sft)
-- [X] [Aquila 1 & 2](https://huggingface.co/models?search=BAAI/Aquila)
-- [X] [Starcoder models](https://github.com/ggml-org/llama.cpp/pull/3187)
-- [X] [Refact](https://huggingface.co/smallcloudai/Refact-1_6B-fim)
-- [X] [MPT](https://github.com/ggml-org/llama.cpp/pull/3417)
-- [X] [Bloom](https://github.com/ggml-org/llama.cpp/pull/3553)
-- [x] [Yi models](https://huggingface.co/models?search=01-ai/Yi)
-- [X] [StableLM models](https://huggingface.co/stabilityai)
-- [x] [Deepseek models](https://huggingface.co/models?search=deepseek-ai/deepseek)
-- [x] [Qwen models](https://huggingface.co/models?search=Qwen/Qwen)
-- [x] [PLaMo-13B](https://github.com/ggml-org/llama.cpp/pull/3557)
-- [x] [Phi models](https://huggingface.co/models?search=microsoft/phi)
-- [x] [PhiMoE](https://github.com/ggml-org/llama.cpp/pull/11003)
-- [x] [GPT-2](https://huggingface.co/gpt2)
-- [x] [Orion 14B](https://github.com/ggml-org/llama.cpp/pull/5118)
-- [x] [InternLM2](https://huggingface.co/models?search=internlm2)
-- [x] [CodeShell](https://github.com/WisdomShell/codeshell)
-- [x] [Gemma](https://ai.google.dev/gemma)
-- [x] [Mamba](https://github.com/state-spaces/mamba)
-- [x] [Grok-1](https://huggingface.co/keyfan/grok-1-hf)
-- [x] [Xverse](https://huggingface.co/models?search=xverse)
-- [x] [Command-R models](https://huggingface.co/models?search=CohereForAI/c4ai-command-r)
-- [x] [SEA-LION](https://huggingface.co/models?search=sea-lion)
-- [x] [GritLM-7B](https://huggingface.co/GritLM/GritLM-7B) + [GritLM-8x7B](https://huggingface.co/GritLM/GritLM-8x7B)
-- [x] [OLMo](https://allenai.org/olmo)
-- [x] [OLMo 2](https://allenai.org/olmo)
-- [x] [OLMoE](https://huggingface.co/allenai/OLMoE-1B-7B-0924)
-- [x] [Granite models](https://huggingface.co/collections/ibm-granite/granite-code-models-6624c5cec322e4c148c8b330)
-- [x] [GPT-NeoX](https://github.com/EleutherAI/gpt-neox) + [Pythia](https://github.com/EleutherAI/pythia)
-- [x] [Snowflake-Arctic MoE](https://huggingface.co/collections/Snowflake/arctic-66290090abe542894a5ac520)
-- [x] [Smaug](https://huggingface.co/models?search=Smaug)
-- [x] [Poro 34B](https://huggingface.co/LumiOpen/Poro-34B)
-- [x] [Bitnet b1.58 models](https://huggingface.co/1bitLLM)
-- [x] [Flan T5](https://huggingface.co/models?search=flan-t5)
-- [x] [Open Elm models](https://huggingface.co/collections/apple/openelm-instruct-models-6619ad295d7ae9f868b759ca)
-- [x] [ChatGLM3-6b](https://huggingface.co/THUDM/chatglm3-6b) + [ChatGLM4-9b](https://huggingface.co/THUDM/glm-4-9b) + [GLMEdge-1.5b](https://huggingface.co/THUDM/glm-edge-1.5b-chat) + [GLMEdge-4b](https://huggingface.co/THUDM/glm-edge-4b-chat)
-- [x] [GLM-4-0414](https://huggingface.co/collections/THUDM/glm-4-0414-67f3cbcb34dd9d252707cb2e)
-- [x] [SmolLM](https://huggingface.co/collections/HuggingFaceTB/smollm-6695016cad7167254ce15966)
-- [x] [EXAONE-3.0-7.8B-Instruct](https://huggingface.co/LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct)
-- [x] [FalconMamba Models](https://huggingface.co/collections/tiiuae/falconmamba-7b-66b9a580324dd1598b0f6d4a)
-- [x] [Jais](https://huggingface.co/inceptionai/jais-13b-chat)
-- [x] [Bielik-11B-v2.3](https://huggingface.co/collections/speakleash/bielik-11b-v23-66ee813238d9b526a072408a)
-- [x] [RWKV-7](https://huggingface.co/collections/shoumenchougou/rwkv7-gxx-gguf)
-- [x] [RWKV-6](https://github.com/BlinkDL/RWKV-LM)
-- [x] [QRWKV-6](https://huggingface.co/recursal/QRWKV6-32B-Instruct-Preview-v0.1)
-- [x] [GigaChat-20B-A3B](https://huggingface.co/ai-sage/GigaChat-20B-A3B-instruct)
-- [X] [Trillion-7B-preview](https://huggingface.co/trillionlabs/Trillion-7B-preview)
-- [x] [Ling models](https://huggingface.co/collections/inclusionAI/ling-67c51c85b34a7ea0aba94c32)
-- [x] [LFM2 models](https://huggingface.co/collections/LiquidAI/lfm2-686d721927015b2ad73eaa38)
-- [x] [Hunyuan models](https://huggingface.co/collections/tencent/hunyuan-dense-model-6890632cda26b19119c9c5e7)
-- [x] [BailingMoeV2 (Ring/Ling 2.0) models](https://huggingface.co/collections/inclusionAI/ling-v2-68bf1dd2fc34c306c1fa6f86)
-
-#### Multimodal
-
-- [x] [LLaVA 1.5 models](https://huggingface.co/collections/liuhaotian/llava-15-653aac15d994e992e2677a7e), [LLaVA 1.6 models](https://huggingface.co/collections/liuhaotian/llava-16-65b9e40155f60fd046a5ccf2)
-- [x] [BakLLaVA](https://huggingface.co/models?search=SkunkworksAI/Bakllava)
-- [x] [Obsidian](https://huggingface.co/NousResearch/Obsidian-3B-V0.5)
-- [x] [ShareGPT4V](https://huggingface.co/models?search=Lin-Chen/ShareGPT4V)
-- [x] [MobileVLM 1.7B/3B models](https://huggingface.co/models?search=mobileVLM)
-- [x] [Yi-VL](https://huggingface.co/models?search=Yi-VL)
-- [x] [Mini CPM](https://huggingface.co/models?search=MiniCPM)
-- [x] [Moondream](https://huggingface.co/vikhyatk/moondream2)
-- [x] [Bunny](https://github.com/BAAI-DCAI/Bunny)
-- [x] [GLM-EDGE](https://huggingface.co/models?search=glm-edge)
-- [x] [Qwen2-VL](https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d)
-- [x] [LFM2-VL](https://huggingface.co/collections/LiquidAI/lfm2-vl-68963bbc84a610f7638d5ffa)
-
-</details>
-
-<details>
-<summary>Bindings</summary>
-
-- Python: [ddh0/easy-llama](https://github.com/ddh0/easy-llama)
-- Python: [abetlen/llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
-- Go: [go-skynet/go-llama.cpp](https://github.com/go-skynet/go-llama.cpp)
-- Node.js: [withcatai/node-llama-cpp](https://github.com/withcatai/node-llama-cpp)
-- JS/TS (llama.cpp server client): [lgrammel/modelfusion](https://modelfusion.dev/integration/model-provider/llamacpp)
-- JS/TS (Programmable Prompt Engine CLI): [offline-ai/cli](https://github.com/offline-ai/cli)
-- JavaScript/Wasm (works in browser): [tangledgroup/llama-cpp-wasm](https://github.com/tangledgroup/llama-cpp-wasm)
-- Typescript/Wasm (nicer API, available on npm): [ngxson/wllama](https://github.com/ngxson/wllama)
-- Ruby: [yoshoku/llama_cpp.rb](https://github.com/yoshoku/llama_cpp.rb)
-- Rust (more features): [edgenai/llama_cpp-rs](https://github.com/edgenai/llama_cpp-rs)
-- Rust (nicer API): [mdrokz/rust-llama.cpp](https://github.com/mdrokz/rust-llama.cpp)
-- Rust (more direct bindings): [utilityai/llama-cpp-rs](https://github.com/utilityai/llama-cpp-rs)
-- Rust (automated build from crates.io): [ShelbyJenkins/llm_client](https://github.com/ShelbyJenkins/llm_client)
-- C#/.NET: [SciSharp/LLamaSharp](https://github.com/SciSharp/LLamaSharp)
-- C#/VB.NET (more features - community license): [LM-Kit.NET](https://docs.lm-kit.com/lm-kit-net/index.html)
-- Scala 3: [donderom/llm4s](https://github.com/donderom/llm4s)
-- Clojure: [phronmophobic/llama.clj](https://github.com/phronmophobic/llama.clj)
-- React Native: [mybigday/llama.rn](https://github.com/mybigday/llama.rn)
-- Java: [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp)
-- Java: [QuasarByte/llama-cpp-jna](https://github.com/QuasarByte/llama-cpp-jna)
-- Zig: [deins/llama.cpp.zig](https://github.com/Deins/llama.cpp.zig)
-- Flutter/Dart: [netdur/llama_cpp_dart](https://github.com/netdur/llama_cpp_dart)
-- Flutter: [xuegao-tzx/Fllama](https://github.com/xuegao-tzx/Fllama)
-- PHP (API bindings and features built on top of llama.cpp): [distantmagic/resonance](https://github.com/distantmagic/resonance) [(more info)](https://github.com/ggml-org/llama.cpp/pull/6326)
-- Guile Scheme: [guile_llama_cpp](https://savannah.nongnu.org/projects/guile-llama-cpp)
-- Swift [srgtuszy/llama-cpp-swift](https://github.com/srgtuszy/llama-cpp-swift)
-- Swift [ShenghaiWang/SwiftLlama](https://github.com/ShenghaiWang/SwiftLlama)
-- Delphi [Embarcadero/llama-cpp-delphi](https://github.com/Embarcadero/llama-cpp-delphi)
-- Go (no CGo needed): [hybridgroup/yzma](https://github.com/hybridgroup/yzma)
-- Android: [llama.android](/examples/llama.android)
-
-</details>
-
-<details>
-<summary>UIs</summary>
-
-*(to have a project listed here, it should clearly state that it depends on `llama.cpp`)*
-
-- [AI Sublime Text plugin](https://github.com/yaroslavyaroslav/OpenAI-sublime-text) (MIT)
-- [BonzAI App](https://apps.apple.com/us/app/bonzai-your-local-ai-agent/id6752847988) (proprietary)
-- [cztomsik/ava](https://github.com/cztomsik/ava) (MIT)
-- [Dot](https://github.com/alexpinel/Dot) (GPL)
-- [eva](https://github.com/ylsdamxssjxxdd/eva) (MIT)
-- [iohub/collama](https://github.com/iohub/coLLaMA) (Apache-2.0)
-- [janhq/jan](https://github.com/janhq/jan) (AGPL)
-- [johnbean393/Sidekick](https://github.com/johnbean393/Sidekick) (MIT)
-- [KanTV](https://github.com/zhouwg/kantv?tab=readme-ov-file) (Apache-2.0)
-- [KodiBot](https://github.com/firatkiral/kodibot) (GPL)
-- [llama.vim](https://github.com/ggml-org/llama.vim) (MIT)
-- [LARS](https://github.com/abgulati/LARS) (AGPL)
-- [Llama Assistant](https://github.com/vietanhdev/llama-assistant) (GPL)
-- [LlamaLib](https://github.com/undreamai/LlamaLib) (Apache-2.0)
-- [LLMFarm](https://github.com/guinmoon/LLMFarm?tab=readme-ov-file) (MIT)
-- [LLMUnity](https://github.com/undreamai/LLMUnity) (MIT)
-- [LMStudio](https://lmstudio.ai/) (proprietary)
-- [LocalAI](https://github.com/mudler/LocalAI) (MIT)
-- [LostRuins/koboldcpp](https://github.com/LostRuins/koboldcpp) (AGPL)
-- [MindMac](https://mindmac.app) (proprietary)
-- [MindWorkAI/AI-Studio](https://github.com/MindWorkAI/AI-Studio) (FSL-1.1-MIT)
-- [Mobile-Artificial-Intelligence/maid](https://github.com/Mobile-Artificial-Intelligence/maid) (MIT)
-- [Mozilla-Ocho/llamafile](https://github.com/Mozilla-Ocho/llamafile) (Apache-2.0)
-- [nat/openplayground](https://github.com/nat/openplayground) (MIT)
-- [nomic-ai/gpt4all](https://github.com/nomic-ai/gpt4all) (MIT)
-- [ollama/ollama](https://github.com/ollama/ollama) (MIT)
-- [oobabooga/text-generation-webui](https://github.com/oobabooga/text-generation-webui) (AGPL)
-- [PocketPal AI](https://github.com/a-ghorbani/pocketpal-ai) (MIT)
-- [psugihara/FreeChat](https://github.com/psugihara/FreeChat) (MIT)
-- [ptsochantaris/emeltal](https://github.com/ptsochantaris/emeltal) (MIT)
-- [pythops/tenere](https://github.com/pythops/tenere) (AGPL)
-- [ramalama](https://github.com/containers/ramalama) (MIT)
-- [semperai/amica](https://github.com/semperai/amica) (MIT)
-- [withcatai/catai](https://github.com/withcatai/catai) (MIT)
-- [Autopen](https://github.com/blackhole89/autopen) (GPL)
-
-</details>
-
-<details>
-<summary>Tools</summary>
-
-- [akx/ggify](https://github.com/akx/ggify) – download PyTorch models from Hugging Face Hub and convert them to GGML
-- [akx/ollama-dl](https://github.com/akx/ollama-dl) – download models from the Ollama library to be used directly with llama.cpp
-- [crashr/gppm](https://github.com/crashr/gppm) – launch llama.cpp instances utilizing NVIDIA Tesla P40 or P100 GPUs with reduced idle power consumption
-- [gpustack/gguf-parser](https://github.com/gpustack/gguf-parser-go/tree/main/cmd/gguf-parser) - review/check the GGUF file and estimate the memory usage
-- [Styled Lines](https://marketplace.unity.com/packages/tools/generative-ai/styled-lines-llama-cpp-model-292902) (proprietary licensed, async wrapper of inference part for game development in Unity3d with pre-built Mobile and Web platform wrappers and a model example)
-- [unslothai/unsloth](https://github.com/unslothai/unsloth) – 🦥 exports/saves fine-tuned and trained models to GGUF (Apache-2.0)
-
-</details>
-
-<details>
-<summary>Infrastructure</summary>
-
-- [Paddler](https://github.com/intentee/paddler) - Open-source LLMOps platform for hosting and scaling AI in your own infrastructure
-- [GPUStack](https://github.com/gpustack/gpustack) - Manage GPU clusters for running LLMs
-- [llama_cpp_canister](https://github.com/onicai/llama_cpp_canister) - llama.cpp as a smart contract on the Internet Computer, using WebAssembly
-- [llama-swap](https://github.com/mostlygeek/llama-swap) - transparent proxy that adds automatic model switching with llama-server
-- [Kalavai](https://github.com/kalavai-net/kalavai-client) - Crowdsource end to end LLM deployment at any scale
-- [llmaz](https://github.com/InftyAI/llmaz) - ☸️ Easy, advanced inference platform for large language models on Kubernetes.
-- [LLMKube](https://github.com/defilantech/llmkube) - Kubernetes operator for llama.cpp with multi-GPU and Apple Silicon Metal
-  support"
-</details>
-
-<details>
-<summary>Games</summary>
-
-- [Lucy's Labyrinth](https://github.com/MorganRO8/Lucys_Labyrinth) - A simple maze game where agents controlled by an AI model will try to trick you.
-
-</details>
-
-
-## Supported backends
-
-| Backend | Target devices |
-| --- | --- |
-| [Metal](docs/build.md#metal-build) | Apple Silicon |
-| [BLAS](docs/build.md#blas-build) | All |
-| [BLIS](docs/backend/BLIS.md) | All |
-| [SYCL](docs/backend/SYCL.md) | Intel and Nvidia GPU |
-| [OpenVINO [In Progress]](docs/backend/OPENVINO.md) | Intel CPUs, GPUs, and NPUs |
-| [MUSA](docs/build.md#musa) | Moore Threads GPU |
-| [CUDA](docs/build.md#cuda) | Nvidia GPU |
-| [HIP](docs/build.md#hip) | AMD GPU |
-| [ZenDNN](docs/build.md#zendnn) | AMD CPU |
-| [Vulkan](docs/build.md#vulkan) | GPU |
-| [CANN](docs/build.md#cann) | Ascend NPU |
-| [OpenCL](docs/backend/OPENCL.md) | Adreno GPU |
-| [IBM zDNN](docs/backend/zDNN.md) | IBM Z & LinuxONE |
-| [WebGPU [In Progress]](docs/build.md#webgpu) | All |
-| [RPC](https://github.com/ggml-org/llama.cpp/tree/master/tools/rpc) | All |
-| [Hexagon [In Progress]](docs/backend/snapdragon/README.md) | Snapdragon |
-| [VirtGPU](docs/backend/VirtGPU.md) | VirtGPU APIR |
-
-## Obtaining and quantizing models
-
-The [Hugging Face](https://huggingface.co) platform hosts a [number of LLMs](https://huggingface.co/models?library=gguf&sort=trending) compatible with `llama.cpp`:
-
-- [Trending](https://huggingface.co/models?library=gguf&sort=trending)
-- [LLaMA](https://huggingface.co/models?sort=trending&search=llama+gguf)
-
-You can either manually download the GGUF file or directly use any `llama.cpp`-compatible models from [Hugging Face](https://huggingface.co/) or other model hosting sites, by using this CLI argument: `-hf <user>/<model>[:quant]`. For example:
-
-```sh
-llama-cli -hf ggml-org/gemma-3-1b-it-GGUF
-```
-
-By default, the CLI would download from Hugging Face, you can switch to other options with the environment variable `MODEL_ENDPOINT`. The `MODEL_ENDPOINT` must point to a Hugging Face compatible API endpoint.
-
-After downloading a model, use the CLI tools to run it locally - see below.
-
-`llama.cpp` requires the model to be stored in the [GGUF](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) file format. Models in other data formats can be converted to GGUF using the `convert_*.py` Python scripts in this repo.
-
-The Hugging Face platform provides a variety of online tools for converting, quantizing and hosting models with `llama.cpp`:
-
-- Use the [GGUF-my-repo space](https://huggingface.co/spaces/ggml-org/gguf-my-repo) to convert to GGUF format and quantize model weights to smaller sizes
-- Use the [GGUF-my-LoRA space](https://huggingface.co/spaces/ggml-org/gguf-my-lora) to convert LoRA adapters to GGUF format (more info: https://github.com/ggml-org/llama.cpp/discussions/10123)
-- Use the [GGUF-editor space](https://huggingface.co/spaces/CISCai/gguf-editor) to edit GGUF meta data in the browser (more info: https://github.com/ggml-org/llama.cpp/discussions/9268)
-- Use the [Inference Endpoints](https://ui.endpoints.huggingface.co/) to directly host `llama.cpp` in the cloud (more info: https://github.com/ggml-org/llama.cpp/discussions/9669)
-
-To learn more about model quantization, [read this documentation](tools/quantize/README.md)
-
-## [`llama-cli`](tools/cli)
-
-#### A CLI tool for accessing and experimenting with most of `llama.cpp`'s functionality.
-
-- <details open>
-    <summary>Run in conversation mode</summary>
-
-    Models with a built-in chat template will automatically activate conversation mode. If this doesn't occur, you can manually enable it by adding `-cnv` and specifying a suitable chat template with `--chat-template NAME`
-
-    ```bash
-    llama-cli -m model.gguf
-
-    # > hi, who are you?
-    # Hi there! I'm your helpful assistant! I'm an AI-powered chatbot designed to assist and provide information to users like you. I'm here to help answer your questions, provide guidance, and offer support on a wide range of topics. I'm a friendly and knowledgeable AI, and I'm always happy to help with anything you need. What's on your mind, and how can I assist you today?
-    #
-    # > what is 1+1?
-    # Easy peasy! The answer to 1+1 is... 2!
-    ```
-
-    </details>
-
-- <details>
-    <summary>Run in conversation mode with custom chat template</summary>
-
-    ```bash
-    # use the "chatml" template (use -h to see the list of supported templates)
-    llama-cli -m model.gguf -cnv --chat-template chatml
-
-    # use a custom template
-    llama-cli -m model.gguf -cnv --in-prefix 'User: ' --reverse-prompt 'User:'
-    ```
-
-    </details>
-
-- <details>
-    <summary>Constrain the output with a custom grammar</summary>
-
-    ```bash
-    llama-cli -m model.gguf -n 256 --grammar-file grammars/json.gbnf -p 'Request: schedule a call at 8pm; Command:'
-
-    # {"appointmentTime": "8pm", "appointmentDetails": "schedule a a call"}
-    ```
-
-    The [grammars/](grammars/) folder contains a handful of sample grammars. To write your own, check out the [GBNF Guide](grammars/README.md).
-
-    For authoring more complex JSON grammars, check out https://grammar.intrinsiclabs.ai/
-
-    </details>
-
-
-## [`llama-server`](tools/server)
-
-#### A lightweight, [OpenAI API](https://github.com/openai/openai-openapi) compatible, HTTP server for serving LLMs.
-
-- <details open>
-    <summary>Start a local HTTP server with default configuration on port 8080</summary>
-
-    ```bash
-    llama-server -m model.gguf --port 8080
-
-    # Basic web UI can be accessed via browser: http://localhost:8080
-    # Chat completion endpoint: http://localhost:8080/v1/chat/completions
-    ```
-
-    </details>
-
-- <details>
-    <summary>Support multiple-users and parallel decoding</summary>
-
-    ```bash
-    # up to 4 concurrent requests, each with 4096 max context
-    llama-server -m model.gguf -c 16384 -np 4
-    ```
-
-    </details>
-
-- <details>
-    <summary>Enable speculative decoding</summary>
-
-    ```bash
-    # the draft.gguf model should be a small variant of the target model.gguf
-    llama-server -m model.gguf -md draft.gguf
-    ```
-
-    </details>
-
-- <details>
-    <summary>Serve an embedding model</summary>
-
-    ```bash
-    # use the /embedding endpoint
-    llama-server -m model.gguf --embedding --pooling cls -ub 8192
-    ```
-
-    </details>
-
-- <details>
-    <summary>Serve a reranking model</summary>
-
-    ```bash
-    # use the /reranking endpoint
-    llama-server -m model.gguf --reranking
-    ```
-
-    </details>
-
-- <details>
-    <summary>Constrain all outputs with a grammar</summary>
-
-    ```bash
-    # custom grammar
-    llama-server -m model.gguf --grammar-file grammar.gbnf
-
-    # JSON
-    llama-server -m model.gguf --grammar-file grammars/json.gbnf
-    ```
-
-    </details>
-
-
-## [`llama-perplexity`](tools/perplexity)
-
-#### A tool for measuring the [perplexity](tools/perplexity/README.md) [^1] (and other quality metrics) of a model over a given text.
-
-- <details open>
-    <summary>Measure the perplexity over a text file</summary>
-
-    ```bash
-    llama-perplexity -m model.gguf -f file.txt
-
-    # [1]15.2701,[2]5.4007,[3]5.3073,[4]6.2965,[5]5.8940,[6]5.6096,[7]5.7942,[8]4.9297, ...
-    # Final estimate: PPL = 5.4007 +/- 0.67339
-    ```
-
-    </details>
-
-- <details>
-    <summary>Measure KL divergence</summary>
-
-    ```bash
-    # TODO
-    ```
-
-    </details>
-
-[^1]: [https://huggingface.co/docs/transformers/perplexity](https://huggingface.co/docs/transformers/perplexity)
-
-## [`llama-bench`](tools/llama-bench)
-
-#### Benchmark the performance of the inference for various parameters.
-
-- <details open>
-    <summary>Run default benchmark</summary>
-
-    ```bash
-    llama-bench -m model.gguf
-
-    # Output:
-    # | model               |       size |     params | backend    | threads |          test |                  t/s |
-    # | ------------------- | ---------: | ---------: | ---------- | ------: | ------------: | -------------------: |
-    # | qwen2 1.5B Q4_0     | 885.97 MiB |     1.54 B | Metal,BLAS |      16 |         pp512 |      5765.41 ± 20.55 |
-    # | qwen2 1.5B Q4_0     | 885.97 MiB |     1.54 B | Metal,BLAS |      16 |         tg128 |        197.71 ± 0.81 |
-    #
-    # build: 3e0ba0e60 (4229)
-    ```
-
-    </details>
-
-## [`llama-simple`](examples/simple)
-
-#### A minimal example for implementing apps with `llama.cpp`. Useful for developers.
-
-- <details>
-    <summary>Basic text completion</summary>
-
-    ```bash
-    llama-simple -m model.gguf
-
-    # Hello my name is Kaitlyn and I am a 16 year old girl. I am a junior in high school and I am currently taking a class called "The Art of
-    ```
-
-    </details>
-
-
-## Contributing
-
-- Contributors can open PRs
-- Collaborators will be invited based on contributions
-- Maintainers can push to branches in the `llama.cpp` repo and merge PRs into the `master` branch
-- Any help with managing issues, PRs and projects is very appreciated!
-- See [good first issues](https://github.com/ggml-org/llama.cpp/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for tasks suitable for first contributions
-- Read the [CONTRIBUTING.md](CONTRIBUTING.md) for more information
-- Make sure to read this: [Inference at the edge](https://github.com/ggml-org/llama.cpp/discussions/205)
-- A bit of backstory for those who are interested: [Changelog podcast](https://changelog.com/podcast/532)
-
-## Other documentation
-
-- [cli](tools/cli/README.md)
-- [completion](tools/completion/README.md)
-- [server](tools/server/README.md)
-- [GBNF grammars](grammars/README.md)
-
-#### Development documentation
-
-- [How to build](docs/build.md)
-- [Running on Docker](docs/docker.md)
-- [Build on Android](docs/android.md)
-- [Performance troubleshooting](docs/development/token_generation_performance_tips.md)
-- [GGML tips & tricks](https://github.com/ggml-org/llama.cpp/wiki/GGML-Tips-&-Tricks)
-
-#### Seminal papers and background on the models
-
-If your issue is with model generation quality, then please at least scan the following links and papers to understand the limitations of LLaMA models. This is especially important when choosing an appropriate model size and appreciating both the significant and subtle differences between LLaMA models and ChatGPT:
-- LLaMA:
-    - [Introducing LLaMA: A foundational, 65-billion-parameter large language model](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/)
-    - [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
-- GPT-3
-    - [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165)
-- GPT-3.5 / InstructGPT / ChatGPT:
-    - [Aligning language models to follow instructions](https://openai.com/research/instruction-following)
-    - [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-
-## XCFramework
-The XCFramework is a precompiled version of the library for iOS, visionOS, tvOS,
-and macOS. It can be used in Swift projects without the need to compile the
-library from source. For example:
-```swift
-// swift-tools-version: 5.10
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
-import PackageDescription
-
-let package = Package(
-    name: "MyLlamaPackage",
-    targets: [
-        .executableTarget(
-            name: "MyLlamaPackage",
-            dependencies: [
-                "LlamaFramework"
-            ]),
-        .binaryTarget(
-            name: "LlamaFramework",
-            url: "https://github.com/ggml-org/llama.cpp/releases/download/b5046/llama-b5046-xcframework.zip",
-            checksum: "c19be78b5f00d8d29a25da41042cb7afa094cbf6280a225abe614b03b20029ab"
-        )
-    ]
-)
-```
-The above example is using an intermediate build `b5046` of the library. This can be modified
-to use a different version by changing the URL and checksum.
-
-## Completions
-Command-line completion is available for some environments.
-
-#### Bash Completion
 ```bash
-$ build/bin/llama-cli --completion-bash > ~/.llama-completion.bash
-$ source ~/.llama-completion.bash
-```
-Optionally this can be added to your `.bashrc` or `.bash_profile` to load it
-automatically. For example:
-```console
-$ echo "source ~/.llama-completion.bash" >> ~/.bashrc
+# 克隆仓库
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# 创建构建目录
+mkdir build && cd build
+
+# 配置和构建
+cmake ..
+make -j$(nproc)
+
+# 安装（可选）
+sudo make install
 ```
 
-## Dependencies
+### 使用 Allama CLI
 
-- [yhirose/cpp-httplib](https://github.com/yhirose/cpp-httplib) - Single-header HTTP server, used by `llama-server` - MIT license
-- [stb-image](https://github.com/nothings/stb) - Single-header image format decoder, used by multimodal subsystem - Public domain
-- [nlohmann/json](https://github.com/nlohmann/json) - Single-header JSON library, used by various tools/examples - MIT License
-- [miniaudio.h](https://github.com/mackron/miniaudio) - Single-header audio format decoder, used by multimodal subsystem - Public domain
-- [subprocess.h](https://github.com/sheredom/subprocess.h) - Single-header process launching solution for C and C++ - Public domain
+```bash
+# 初始化模型注册表
+./bin/allama stats
+
+# 添加本地模型
+./bin/allama add my-model /path/to/model.gguf
+
+# 列出所有模型
+./bin/allama list
+
+# 显示模型详细信息
+./bin/allama show my-model
+
+# 验证模型完整性
+./bin/allama validate my-model
+
+# 搜索模型
+./bin/allama search "llama"
+
+# 启动带有模型注册表的服务器
+./bin/allama serve
+```
+
+### 使用增强版服务器
+
+```bash
+# 启用安全功能启动服务器
+./bin/llama-server \
+  --model-registry-path ~/.allama/registry.db \
+  --models-path ~/.allama/models \
+  --port 8080 \
+  --auth-api-key your-secret-key \
+  --enable-audit-log
+
+# 使用带认证的 API
+curl -H "Authorization: Bearer your-secret-key" \
+  http://localhost:8080/v1/chat/completions
+```
+
+## 🔒 安全架构
+
+### 认证
+
+认证系统支持多种方法：
+
+```c
+// API 密钥认证
+auth_config_t config = {
+    .require_auth = true,
+    .api_keys = {"secret-key-1", "secret-key-2"},
+    .api_key_count = 2
+};
+auth_init(&config);
+
+// JWT 认证
+auth_validate_jwt(token, &user_id);
+
+// Basic 认证
+auth_validate_basic(username, password, &user_id);
+```
+
+### 代码签名
+
+对模型文件进行签名和验证以确保完整性：
+
+```bash
+# 对模型文件签名
+./bin/allama sign-model /path/to/model.gguf
+
+# 验证模型文件
+./bin/allama verify-model /path/to/model.gguf.sig
+
+# 对二进制文件签名
+./bin/allama sign-binary /path/to/binary
+
+# 验证二进制文件
+./bin/allama verify-binary /path/to/binary.sig
+```
+
+### 审计日志
+
+所有安全相关操作都会被记录：
+
+```
+[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+```
+
+## 🛡️ 容错能力
+
+### 超时保护
+
+所有操作都有可配置的超时：
+
+```c
+// 短超时（5 秒）用于快速操作
+ft_timeout_t timeout;
+ft_timeout_init(&timeout, SHORT_TIMEOUT);
+
+// 带超时保护的循环
+while (condition && !ft_timeout_check(&timeout)) {
+    // 执行工作
+}
+
+ft_timeout_cleanup(&timeout);
+```
+
+### 看门狗定时器
+
+系统级看门狗防止挂起：
+
+```c
+// 初始化全局容错
+ft_global_init();
+
+// 检查关机请求
+if (ft_is_shutdown_requested()) {
+    // 干净关闭
+    ft_global_cleanup();
+}
+```
+
+## 📊 REST API 端点
+
+### Ollama 兼容端点
+
+- `GET /api/tags` - 列出所有模型
+- `GET /api/show?name=<model>` - 显示模型详细信息
+- `POST /api/delete` - 删除模型
+- `POST /api/copy` - 复制模型
+- `GET /api/ps` - 系统信息和运行中的模型
+- `POST /api/pull` - 拉取模型（远程注册表的占位符）
+- `GET /api/version` - 版本信息
+
+### OpenAI 兼容端点
+
+- `POST /v1/chat/completions` - 聊天完成
+- `POST /v1/completions` - 文本完成
+- `POST /v1/embeddings` - 生成嵌入
+
+## 🏗️ 架构
+
+### 核心组件
+
+```
+common/
+├── auth.c/h                    # 认证系统
+├── code-sign.c/h               # 代码签名和验证
+├── audit-log.c/h               # 审计日志
+├── model-registry.c/h           # 模型注册表
+├── modelfile.c/h               # Modelfile 解析器
+├── resource-monitor.c/h         # 资源监控
+├── file-sandbox.c/h             # 文件沙箱
+├── rate-limit.c/h               # 速率限制
+├── secure-memory.c/h            # 安全内存
+├── gpu-isolation.c/h            # GPU 隔离
+├── anomaly-detection.c/h        # 异常检测
+├── backup-system.c/h            # 备份系统
+├── network-isolation.c/h        # 网络隔离
+└── fault-tolerance.c/h          # 容错框架
+
+tools/
+├── allama/                      # Allama CLI 工具
+└── server/                      # 增强版 llama-server
+```
+
+## 🧪 测试
+
+### 运行安全模块测试
+
+```bash
+cd build
+./bin/test-security-modules
+```
+
+### 运行 CLI 测试
+
+```bash
+./bin/test-allama-cli
+```
+
+### 运行模型注册表测试
+
+```bash
+./bin/test-model-registry
+```
+
+## 📖 文档
+
+- [DO-178C 要求](docs/DO178C_REQUIREMENTS.md) - 航空航天认证要求
+- [Ollama 对齐分析](docs/OLLAMA_ALIGNMENT_GAP_ANALYSIS.md) - 与 Ollama 的功能比较
+- [构建指南](docs/build.md) - 构建说明
+- [服务器文档](tools/server/README.md) - 服务器配置
+
+## 🤝 贡献
+
+本项目遵循 [llama.cpp 贡献指南](CONTRIBUTING.md)，并对安全功能有额外要求：
+
+1. 所有安全更改必须包含全面的测试
+2. 必须为所有安全关键二进制文件维护代码签名
+3. 必须为所有新的安全相关操作添加审计日志
+4. 必须将容错机制应用于所有新功能
+
+**重要：** 本项目不接受完全 AI 生成的拉取请求。AI 工具只能以辅助方式使用。详情请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 📄 许可证
+
+MIT 许可证 - 与 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
+
+## 🙏 致谢
+
+基于 [llama.cpp](https://github.com/ggml-org/llama.cpp)，作者为 Georgi Gerganov 和贡献者。
+
+安全增强功能受航空航天行业标准 和 DO-178C 认证要求启发。
+
+## 🔗 链接
+
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - 原始项目
+- [ggml](https://github.com/ggml-org/ggml) - 张量库
+- [Ollama](https://github.com/ollama/ollama) - 模型管理参考
+
+---
+
+<a name="deutsch"></a>
+# allama (Deutsch)
+
+![Security](https://img.shields.io/badge/security-aerospace--level-red)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-green)
+
+**Aerospace-Level Security Enhanced LLM Inference Engine**
+
+Dies ist eine sicherheitshärtete, aerospace-grade Version von [llama.cpp](https://github.com/ggml-org/llama.cpp) mit umfassenden Sicherheits-, Fehlertoleranz- und Enterprise-Features für mission-critical Deployments.
+
+## 🚀 Hauptfunktionen
+
+### Aerospace-Level Sicherheit
+- **Umfassende Authentifizierung** (API-Schlüssel, JWT, Basic-Auth)
+- **Code-Signing & Verifizierung** (HMAC-SHA256-basiert)
+- **Audit-Logging** (alle Operationen werden mit Beweis gegen Manipulation protokolliert)
+- **Rate-Limiting** (konfigurierbare pro-Benutzer-Limits)
+- **Ressourcen-Monitoring** (CPU-, GPU-, Speicher-Tracking)
+- **File-Sandbox** (eingeschränkter Dateisystem-Zugriff)
+- **Secure Memory** (verschlüsselte Speicherbereiche)
+- **GPU-Isolation** (dedizierte GPU-Ressourcenverwaltung)
+- **Anomalie-Erkennung** (Echtzeit-Bedrohungserkennung)
+- **Netzwerk-Isolation** (Firewall und Netzwerk-Segmentierung)
+- **Backup-System** (automatische Zustandssicherung und -wiederherstellung)
+
+### Fehlertoleranz
+- **Timeout-Schutz** (alle Operationen haben konfigurierbare Timeouts)
+- **Watchdog-Timer** (verhindern Endlosschleifen und Deadlocks)
+- **Retry-Mechanismen** (exponentielles Backoff für transiente Fehler)
+- **Graceful Degradation** (System läuft bei Fehlern mit reduzierter Funktionalität weiter)
+- **Signal-Handling** (sauberes Herunterfahren bei SIGTERM/SIGINT)
+
+### Modell-Management
+- **Lokales Modell-Register** (SQLite-basierte Metadatenspeicherung)
+- **Allama CLI** (Modell-Management-Befehle: pull, list, show, rm, cp, add, create, search, stats, validate)
+- **Modelfile-Support** (Modell-Definition-DSL für benutzerdefinierte Konfigurationen)
+- **REST API** (Ollama-kompatible Endpunkte: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+
+### Leistung
+- Alle llama.cpp-Performance-Optimierungen beibehalten
+- Metal (Apple Silicon), CUDA (NVIDIA), HIP (AMD), Vulkan-Support
+- 1.5-Bit bis 8-Bit-Quantisierung
+- CPU+GPU-Hybrid-Inferenz
+- Spekulatives Decoding
+
+## 📋 Schnellstart
+
+### Aus dem Quellcode bauen
+
+```bash
+# Repository klonen
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# Build-Verzeichnis erstellen
+mkdir build && cd build
+
+# Konfigurieren und bauen
+cmake ..
+make -j$(nproc)
+
+# Installieren (optional)
+sudo make install
+```
+
+### Allama CLI verwenden
+
+```bash
+# Modell-Register initialisieren
+./bin/allama stats
+
+# Lokales Modell hinzufügen
+./bin/allama add my-model /path/to/model.gguf
+
+# Alle Modelle auflisten
+./bin/allama list
+
+# Modell-Details anzeigen
+./bin/allama show my-model
+
+# Modell-Integrität validieren
+./bin/allama validate my-model
+
+# Modelle suchen
+./bin/allama search "llama"
+
+# Server mit Modell-Register starten
+./bin/allama serve
+```
+
+### Erweiterten Server verwenden
+
+```bash
+# Server mit Sicherheitsfunktionen starten
+./bin/llama-server \
+  --model-registry-path ~/.allama/registry.db \
+  --models-path ~/.allama/models \
+  --port 8080 \
+  --auth-api-key your-secret-key \
+  --enable-audit-log
+
+# API mit Authentifizierung verwenden
+curl -H "Authorization: Bearer your-secret-key" \
+  http://localhost:8080/v1/chat/completions
+```
+
+## 🔒 Sicherheitsarchitektur
+
+### Authentifizierung
+
+Das Authentifizierungssystem unterstützt mehrere Methoden:
+
+```c
+// API-Schlüssel-Authentifizierung
+auth_config_t config = {
+    .require_auth = true,
+    .api_keys = {"secret-key-1", "secret-key-2"},
+    .api_key_count = 2
+};
+auth_init(&config);
+
+// JWT-Authentifizierung
+auth_validate_jwt(token, &user_id);
+
+// Basic-Authentifizierung
+auth_validate_basic(username, password, &user_id);
+```
+
+### Code-Signing
+
+Modell-Dateien signieren und verifizieren für Integrität:
+
+```bash
+# Modell-Datei signieren
+./bin/allama sign-model /path/to/model.gguf
+
+# Modell-Datei verifizieren
+./bin/allama verify-model /path/to/model.gguf.sig
+
+# Binary signieren
+./bin/allama sign-binary /path/to/binary
+
+# Binary verifizieren
+./bin/allama verify-binary /path/to/binary.sig
+```
+
+### Audit-Logging
+
+Alle sicherheitsrelevanten Operationen werden protokolliert:
+
+```
+[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+```
+
+## 🛡️ Fehlertoleranz
+
+### Timeout-Schutz
+
+Alle Operationen haben konfigurierbare Timeouts:
+
+```c
+// Kurzes Timeout (5 Sekunden) für schnelle Operationen
+ft_timeout_t timeout;
+ft_timeout_init(&timeout, SHORT_TIMEOUT);
+
+// Schleife mit Timeout-Schutz
+while (condition && !ft_timeout_check(&timeout)) {
+    // Arbeit ausführen
+}
+
+ft_timeout_cleanup(&timeout);
+```
+
+### Watchdog-Timer
+
+Systemweiter Watchdog verhindert Hängen:
+
+```c
+// Globale Fehlertoleranz initialisieren
+ft_global_init();
+
+// Auf Shutdown-Anfrage prüfen
+if (ft_is_shutdown_requested()) {
+    // Sauberes Herunterfahren
+    ft_global_cleanup();
+}
+```
+
+## 📊 REST API Endpunkte
+
+### Ollama-kompatible Endpunkte
+
+- `GET /api/tags` - Alle Modelle auflisten
+- `GET /api/show?name=<model>` - Modell-Details anzeigen
+- `POST /api/delete` - Modell löschen
+- `POST /api/copy` - Modell kopieren
+- `GET /api/ps` - System-Info und laufende Modelle
+- `POST /api/pull` - Modell pullen (Platzhalter für Remote-Register)
+- `GET /api/version` - Versionsinformationen
+
+### OpenAI-kompatible Endpunkte
+
+- `POST /v1/chat/completions` - Chat-Completions
+- `POST /v1/completions` - Text-Completions
+- `POST /v1/embeddings` - Embeddings generieren
+
+## 🏗️ Architektur
+
+### Kernkomponenten
+
+```
+common/
+├── auth.c/h                    # Authentifizierungssystem
+├── code-sign.c/h               # Code-Signing und -Verifizierung
+├── audit-log.c/h               # Audit-Logging
+├── model-registry.c/h           # Modell-Register
+├── modelfile.c/h               # Modelfile-Parser
+├── resource-monitor.c/h         # Ressourcen-Monitoring
+├── file-sandbox.c/h             # File-Sandbox
+├── rate-limit.c/h               # Rate-Limiting
+├── secure-memory.c/h            # Secure Memory
+├── gpu-isolation.c/h            # GPU-Isolation
+├── anomaly-detection.c/h        # Anomalie-Erkennung
+├── backup-system.c/h            # Backup-System
+├── network-isolation.c/h        # Netzwerk-Isolation
+└── fault-tolerance.c/h          # Fehlertoleranz-Framework
+
+tools/
+├── allama/                      # Allama CLI Tool
+└── server/                      # Erweitertes llama-server
+```
+
+## 🧪 Tests
+
+### Sicherheitsmodul-Tests ausführen
+
+```bash
+cd build
+./bin/test-security-modules
+```
+
+### CLI-Tests ausführen
+
+```bash
+./bin/test-allama-cli
+```
+
+### Modell-Register-Tests ausführen
+
+```bash
+./bin/test-model-registry
+```
+
+## 📖 Dokumentation
+
+- [DO-178C Anforderungen](docs/DO178C_REQUIREMENTS.md) - Aerospace-Zertifizierungsanforderungen
+- [Ollama-Alignment-Analyse](docs/OLLAMA_ALIGNMENT_GAP_ANALYSIS.md) - Funktionsvergleich mit Ollama
+- [Build-Leitfaden](docs/build.md) - Build-Anweisungen
+- [Server-Dokumentation](tools/server/README.md) - Server-Konfiguration
+
+## 🤝 Mitwirken
+
+Dieses Projekt folgt den [llama.cpp Contributing-Richtlinien](CONTRIBUTING.md) mit zusätzlichen Anforderungen für Sicherheitsfunktionen:
+
+1. Alle Sicherheitsänderungen müssen umfassende Tests enthalten
+2. Code-Signing muss für alle sicherheitskritischen Binaries gepflegt werden
+3. Audit-Logging muss für alle neuen sicherheitsrelevanten Operationen hinzugefügt werden
+4. Fehlertoleranz-Mechanismen müssen auf alle neuen Funktionen angewendet werden
+
+**Wichtig:** Dieses Projekt akzeptiert keine vollständig KI-generierten Pull Requests. KI-Tools dürfen nur in unterstützender Funktion verwendet werden. Details siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## 📄 Lizenz
+
+MIT-Lizenz - Gleich wie [llama.cpp](https://github.com/ggml-org/llama.cpp)
+
+## 🙏 Danksagungen
+
+Basierend auf [llama.cpp](https://github.com/ggml-org/llama.cpp) von Georgi Gerganov und Mitwirkenden.
+
+Sicherheitsverbesserungen inspiriert von Aerospace-Industriestandards und DO-178C-Zertifizierungsanforderungen.
+
+## 🔗 Links
+
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - Originalprojekt
+- [ggml](https://github.com/ggml-org/ggml) - Tensor-Bibliothek
+- [Ollama](https://github.com/ollama/ollama) - Modell-Management-Referenz
+
+---
+
+[↑ Back to top](#allama)
+
+</div>
