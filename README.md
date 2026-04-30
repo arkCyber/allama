@@ -2,7 +2,7 @@
 
 # allama
 
-[Language: English](#english) | [中文](#chinese) | [Deutsch](#deutsch)
+[Language: English](#english) | [简体中文](#chinese) | [繁體中文](#traditional-chinese) | [日本語](#japanese) | [Deutsch](#deutsch) | [Français](#french)
 
 ---
 
@@ -882,6 +882,885 @@ Sicherheitsverbesserungen inspiriert von Aerospace-Industriestandards und DO-178
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) - Originalprojekt
 - [ggml](https://github.com/ggml-org/ggml) - Tensor-Bibliothek
 - [Ollama](https://github.com/ollama/ollama) - Modell-Management-Referenz
+
+---
+
+<a name="traditional-chinese"></a>
+# allama (繁體中文)
+
+![Security](https://img.shields.io/badge/security-aerospace--level-red)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-green)
+
+**航空航天級安全增強型 LLM 推理引擎**
+
+這是 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的安全加固、航空航天級版本，具有全面的安全、容錯和企業級功能，專為關鍵任務部署而設計。
+
+## 🚀 主要特性
+
+### 航空航天級安全
+- **全面認證**（API 密鑰、JWT、Basic 認證）
+- **代碼簽名與驗證**（基於 HMAC-SHA256）
+- **審計日誌**（所有操作均記錄，具有防篡改證據）
+- **速率限制**（可配置的每用戶限制）
+- **資源監控**（CPU、GPU、內存跟蹤）
+- **文件沙箱**（受限的文件系統訪問）
+- **安全內存**（加密內存區域）
+- **GPU 隔離**（專用 GPU 資源管理）
+- **異常檢測**（實時威脅檢測）
+- **網絡隔離**（防火牆和網絡分段）
+- **備份系統**（自動狀態備份和恢復）
+
+### 容錯能力
+- **超時保護**（所有操作都有可配置的超時）
+- **看門狗定時器**（防止無限循環和死鎖）
+- **重試機制**（指數退避處理瞬態故障）
+- **優雅降級**（系統在故障時以降低功能繼續運行）
+- **信號處理**（SIGTERM/SIGINT 上的乾淨關閉）
+
+### 模型管理
+- **本地模型註冊表**（基於 SQLite 的元數據存儲）
+- **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate）
+- **Modelfile 支持**（自定義配置的模型定義 DSL）
+- **REST API**（Ollama 兼容端點：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+
+### 性能
+- 保留所有 llama.cpp 性能優化
+- Metal（Apple Silicon）、CUDA（NVIDIA）、HIP（AMD）、Vulkan 支持
+- 1.5 位到 8 位量化
+- CPU+GPU 混合推理
+- 推測性解碼
+
+## 📋 快速開始
+
+### 從源代碼構建
+
+```bash
+# 克隆倉庫
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# 創建構建目錄
+mkdir build && cd build
+
+# 配置和構建
+cmake ..
+make -j$(nproc)
+
+# 安裝（可選）
+sudo make install
+```
+
+### 使用 Allama CLI
+
+```bash
+# 初始化模型註冊表
+./bin/allama stats
+
+# 添加本地模型
+./bin/allama add my-model /path/to/model.gguf
+
+# 列出所有模型
+./bin/allama list
+
+# 顯示模型詳細信息
+./bin/allama show my-model
+
+# 驗證模型完整性
+./bin/allama validate my-model
+
+# 搜索模型
+./bin/allama search "llama"
+
+# 啟動帶有模型註冊表的服務器
+./bin/allama serve
+```
+
+### 使用增強版服務器
+
+```bash
+# 啟用安全功能啟動服務器
+./bin/llama-server \
+  --model-registry-path ~/.allama/registry.db \
+  --models-path ~/.allama/models \
+  --port 8080 \
+  --auth-api-key your-secret-key \
+  --enable-audit-log
+
+# 使用帶認證的 API
+curl -H "Authorization: Bearer your-secret-key" \
+  http://localhost:8080/v1/chat/completions
+```
+
+## 🔒 安全架構
+
+### 認證
+
+認證系統支持多種方法：
+
+```c
+// API 密鑰認證
+auth_config_t config = {
+    .require_auth = true,
+    .api_keys = {"secret-key-1", "secret-key-2"},
+    .api_key_count = 2
+};
+auth_init(&config);
+
+// JWT 認證
+auth_validate_jwt(token, &user_id);
+
+// Basic 認證
+auth_validate_basic(username, password, &user_id);
+```
+
+### 代碼簽名
+
+對模型文件進行簽名和驗證以確保完整性：
+
+```bash
+# 對模型文件簽名
+./bin/allama sign-model /path/to/model.gguf
+
+# 驗證模型文件
+./bin/allama verify-model /path/to/model.gguf.sig
+
+# 對二進制文件簽名
+./bin/allama sign-binary /path/to/binary
+
+# 驗證二進制文件
+./bin/allama verify-binary /path/to/binary.sig
+```
+
+### 審計日誌
+
+所有安全相關操作都會被記錄：
+
+```
+[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+```
+
+## 🛡️ 容錯能力
+
+### 超時保護
+
+所有操作都有可配置的超時：
+
+```c
+// 短超時（5 秒）用於快速操作
+ft_timeout_t timeout;
+ft_timeout_init(&timeout, SHORT_TIMEOUT);
+
+// 帶超時保護的循環
+while (condition && !ft_timeout_check(&timeout)) {
+    // 執行工作
+}
+
+ft_timeout_cleanup(&timeout);
+```
+
+### 看門狗定時器
+
+系統級看門狗防止掛起：
+
+```c
+// 初始化全局容錯
+ft_global_init();
+
+// 檢查關機請求
+if (ft_is_shutdown_requested()) {
+    // 乾淨關閉
+    ft_global_cleanup();
+}
+```
+
+## 📊 REST API 端點
+
+### Ollama 兼容端點
+
+- `GET /api/tags` - 列出所有模型
+- `GET /api/show?name=<model>` - 顯示模型詳細信息
+- `POST /api/delete` - 刪除模型
+- `POST /api/copy` - 複製模型
+- `GET /api/ps` - 系統信息和運行中的模型
+- `POST /api/pull` - 拉取模型（遠程註冊表的佔位符）
+- `GET /api/version` - 版本信息
+
+### OpenAI 兼容端點
+
+- `POST /v1/chat/completions` - 聊天完成
+- `POST /v1/completions` - 文本完成
+- `POST /v1/embeddings` - 生成嵌入
+
+## 🏗️ 架構
+
+### 核心組件
+
+```
+common/
+├── auth.c/h                    # 認證系統
+├── code-sign.c/h               # 代碼簽名和驗證
+├── audit-log.c/h               # 審計日誌
+├── model-registry.c/h           # 模型註冊表
+├── modelfile.c/h               # Modelfile 解析器
+├── resource-monitor.c/h         # 資源監控
+├── file-sandbox.c/h             # 文件沙箱
+├── rate-limit.c/h               # 速率限制
+├── secure-memory.c/h            # 安全內存
+├── gpu-isolation.c/h            # GPU 隔離
+├── anomaly-detection.c/h        # 異常檢測
+├── backup-system.c/h            # 備份系統
+├── network-isolation.c/h        # 網絡隔離
+└── fault-tolerance.c/h          # 容錯框架
+
+tools/
+├── allama/                      # Allama CLI 工具
+└── server/                      # 增強版 llama-server
+```
+
+## 🧪 測試
+
+### 運行安全模塊測試
+
+```bash
+cd build
+./bin/test-security-modules
+```
+
+### 運行 CLI 測試
+
+```bash
+./bin/test-allama-cli
+```
+
+### 運行模型註冊表測試
+
+```bash
+./bin/test-model-registry
+```
+
+## 📖 文檔
+
+- [DO-178C 要求](docs/DO178C_REQUIREMENTS.md) - 航空航天認證要求
+- [Ollama 對齊分析](docs/OLLAMA_ALIGNMENT_GAP_ANALYSIS.md) - 與 Ollama 的功能比較
+- [構建指南](docs/build.md) - 構建說明
+- [服務器文檔](tools/server/README.md) - 服務器配置
+
+## 🤝 貢獻
+
+本項目遵循 [llama.cpp 貢獻指南](CONTRIBUTING.md)，並對安全功能有額外要求：
+
+1. 所有安全更改必須包含全面的測試
+2. 必須為所有安全關鍵二進制文件維護代碼簽名
+3. 必須為所有新的安全相關操作添加審計日誌
+4. 必須將容錯機制應用於所有新功能
+
+**重要：** 本項目不接受完全 AI 生成的拉取請求。AI 工具只能以輔助方式使用。詳情請參閱 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 📄 許可證
+
+MIT 許可證 - 與 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
+
+## 🙏 致謝
+
+基於 [llama.cpp](https://github.com/ggml-org/llama.cpp)，作者為 Georgi Gerganov 和貢獻者。
+
+安全增強功能受航空航天行業標準 和 DO-178C 認證要求啟發。
+
+## 🔗 鏈接
+
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - 原始項目
+- [ggml](https://github.com/ggml-org/ggml) - 張量庫
+- [Ollama](https://github.com/ollama/ollama) - 模型管理參考
+
+---
+
+<a name="japanese"></a>
+# allama (日本語)
+
+![Security](https://img.shields.io/badge/security-aerospace--level-red)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-green)
+
+**航空宇宙レベルのセキュリティ強化型 LLM 推論エンジン**
+
+これは [llama.cpp](https://github.com/ggml-org/llama.cpp) のセキュリティ強化、航空宇宙級バージョンであり、ミッションクリティカルなデプロイ向けの包括的なセキュリティ、障害耐性、エンタープライズ機能を備えています。
+
+## 🚀 主な機能
+
+### 航空宇宙レベルのセキュリティ
+- **包括的な認証**（API キー、JWT、Basic 認証）
+- **コード署名と検証**（HMAC-SHA256 ベース）
+- **監査ログ**（すべての操作が改ざん証拠付きで記録）
+- **レート制限**（ユーザーごとの設定可能な制限）
+- **リソース監視**（CPU、GPU、メモリ追跡）
+- **ファイルサンドボックス**（制限されたファイルシステムアクセス）
+- **セキュアメモリ**（暗号化メモリ領域）
+- **GPU 分離**（専用 GPU リソース管理）
+- **異常検知**（リアルタイム脅威検知）
+- **ネットワーク分離**（ファイアウォールとネットワークセグメンテーション）
+- **バックアップシステム**（自動状態バックアップと復元）
+
+### 障害耐性
+- **タイムアウト保護**（すべての操作に設定可能なタイムアウト）
+- **ウォッチドッグタイマー**（無限ループとデッドロックの防止）
+- **再試行メカニズム**（一時的な障害に対する指数バックオフ）
+- **グレースフルデグラデーション**（障害時に機能を低下させて継続）
+- **信号処理**（SIGTERM/SIGINT でのクリーンシャットダウン）
+
+### モデル管理
+- **ローカルモデルレジストリ**（SQLite ベースのメタデータストレージ）
+- **Allama CLI**（モデル管理コマンド：pull、list、show、rm、cp、add、create、search、stats、validate）
+- **Modelfile サポート**（カスタム設定用モデル定義 DSL）
+- **REST API**（Ollama 互換エンドポイント：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+
+### パフォーマンス
+- すべての llama.cpp パフォーマンス最適化を保持
+- Metal（Apple Silicon）、CUDA（NVIDIA）、HIP（AMD）、Vulkan サポート
+- 1.5 ビットから 8 ビット量子化
+- CPU+GPU ハイブリッド推論
+- 投機的デコード
+
+## 📋 クイックスタート
+
+### ソースからビルド
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# ビルドディレクトリを作成
+mkdir build && cd build
+
+# 設定とビルド
+cmake ..
+make -j$(nproc)
+
+# インストール（オプション）
+sudo make install
+```
+
+### Allama CLI の使用
+
+```bash
+# モデルレジストリを初期化
+./bin/allama stats
+
+# ローカルモデルを追加
+./bin/allama add my-model /path/to/model.gguf
+
+# すべてのモデルを一覧表示
+./bin/allama list
+
+# モデル詳細を表示
+./bin/allama show my-model
+
+# モデル整合性を検証
+./bin/allama validate my-model
+
+# モデルを検索
+./bin/allama search "llama"
+
+# モデルレジストリ付きでサーバーを起動
+./bin/allama serve
+```
+
+### 拡張サーバーの使用
+
+```bash
+# セキュリティ機能を有効にしてサーバーを起動
+./bin/llama-server \
+  --model-registry-path ~/.allama/registry.db \
+  --models-path ~/.allama/models \
+  --port 8080 \
+  --auth-api-key your-secret-key \
+  --enable-audit-log
+
+# 認証付き API を使用
+curl -H "Authorization: Bearer your-secret-key" \
+  http://localhost:8080/v1/chat/completions
+```
+
+## 🔒 セキュリティアーキテクチャ
+
+### 認証
+
+認証システムは複数のメソッドをサポート：
+
+```c
+// API キー認証
+auth_config_t config = {
+    .require_auth = true,
+    .api_keys = {"secret-key-1", "secret-key-2"},
+    .api_key_count = 2
+};
+auth_init(&config);
+
+// JWT 認証
+auth_validate_jwt(token, &user_id);
+
+// Basic 認証
+auth_validate_basic(username, password, &user_id);
+```
+
+### コード署名
+
+整合性のためにモデルファイルに署名と検証：
+
+```bash
+# モデルファイルに署名
+./bin/allama sign-model /path/to/model.gguf
+
+# モデルファイルを検証
+./bin/allama verify-model /path/to/model.gguf.sig
+
+# バイナリに署名
+./bin/allama sign-binary /path/to/binary
+
+# バイナリを検証
+./bin/allama verify-binary /path/to/binary.sig
+```
+
+### 監査ログ
+
+すべてのセキュリティ関連操作が記録：
+
+```
+[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+```
+
+## 🛡️ 障害耐性
+
+### タイムアウト保護
+
+すべての操作に設定可能なタイムアウト：
+
+```c
+// 短いタイムアウト（5 秒）高速操作用
+ft_timeout_t timeout;
+ft_timeout_init(&timeout, SHORT_TIMEOUT);
+
+// タイムアウト保護付きループ
+while (condition && !ft_timeout_check(&timeout)) {
+    // 作業を実行
+}
+
+ft_timeout_cleanup(&timeout);
+```
+
+### ウォッチドッグタイマー
+
+システム全体のウォッチドッグがハングを防止：
+
+```c
+// グローバル障害耐性を初期化
+ft_global_init();
+
+// シャットダウン要求をチェック
+if (ft_is_shutdown_requested()) {
+    // クリーンシャットダウン
+    ft_global_cleanup();
+}
+```
+
+## 📊 REST API エンドポイント
+
+### Ollama 互換エンドポイント
+
+- `GET /api/tags` - すべてのモデルを一覧表示
+- `GET /api/show?name=<model>` - モデル詳細を表示
+- `POST /api/delete` - モデルを削除
+- `POST /api/copy` - モデルをコピー
+- `GET /api/ps` - システム情報と実行中のモデル
+- `POST /api/pull` - モデルをプル（リモートレジストリのプレースホルダー）
+- `GET /api/version` - バージョン情報
+
+### OpenAI 互換エンドポイント
+
+- `POST /v1/chat/completions` - チャット補完
+- `POST /v1/completions` - テキスト補完
+- `POST /v1/embeddings` - 埋め込み生成
+
+## 🏗️ アーキテクチャ
+
+### コアコンポーネント
+
+```
+common/
+├── auth.c/h                    # 認証システム
+├── code-sign.c/h               # コード署名と検証
+├── audit-log.c/h               # 監査ログ
+├── model-registry.c/h           # モデルレジストリ
+├── modelfile.c/h               # Modelfile パーサー
+├── resource-monitor.c/h         # リソース監視
+├── file-sandbox.c/h             # ファイルサンドボックス
+├── rate-limit.c/h               # レート制限
+├── secure-memory.c/h            # セキュアメモリ
+├── gpu-isolation.c/h            # GPU 分離
+├── anomaly-detection.c/h        # 異常検知
+├── backup-system.c/h            # バックアップシステム
+├── network-isolation.c/h        # ネットワーク分離
+└── fault-tolerance.c/h          # 障害耐性フレームワーク
+
+tools/
+├── allama/                      # Allama CLI ツール
+└── server/                      # 拡張 llama-server
+```
+
+## 🧪 テスト
+
+### セキュリティモジュールテストを実行
+
+```bash
+cd build
+./bin/test-security-modules
+```
+
+### CLI テストを実行
+
+```bash
+./bin/test-allama-cli
+```
+
+### モデルレジストリテストを実行
+
+```bash
+./bin/test-model-registry
+```
+
+## 📖 ドキュメント
+
+- [DO-178C 要件](docs/DO178C_REQUIREMENTS.md) - 航空宇宙認証要件
+- [Ollama アライメント分析](docs/OLLAMA_ALIGNMENT_GAP_ANALYSIS.md) - Ollama との機能比較
+- [ビルドガイド](docs/build.md) - ビルド手順
+- [サーバードキュメント](tools/server/README.md) - サーバー設定
+
+## 🤝 貢献
+
+このプロジェクトは [llama.cpp 貢献ガイドライン](CONTRIBUTING.md) に従い、セキュリティ機能に追加要件があります：
+
+1. すべてのセキュリティ変更には包括的なテストが必要
+2. すべてのセキュリティ重要バイナリのコード署名を維持
+3. すべての新しいセキュリティ関連操作に監査ログを追加
+4. すべての新機能に障害耐性メカニズムを適用
+
+**重要：** このプロジェクトは完全に AI 生成されたプルリクエストを受け入れません。AI ツールは補助的な使用のみ可能です。詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
+
+## 📄 ライセンス
+
+MIT ライセンス - [llama.cpp](https://github.com/ggml-org/llama.cpp) と同じ
+
+## 🙏 謝辞
+
+[llama.cpp](https://github.com/ggml-org/llama.cpp) に基づいており、著者は Georgi Gerganov と貢献者です。
+
+セキュリティ強化は航空宇宙業界標準と DO-178C 認証要件に触発されています。
+
+## 🔗 リンク
+
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - 元のプロジェクト
+- [ggml](https://github.com/ggml-org/ggml) - テンソルライブラリ
+- [Ollama](https://github.com/ollama/ollama) - モデル管理リファレンス
+
+---
+
+<a name="french"></a>
+# allama (Français)
+
+![Security](https://img.shields.io/badge/security-aerospace--level-red)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-green)
+
+**Moteur d'inférence LLM renforcé au niveau aérospatial**
+
+Il s'agit d'une version sécurisée et de niveau aérospatial de [llama.cpp](https://github.com/ggml-org/llama.cpp) avec des fonctionnalités de sécurité complètes, de tolérance aux pannes et de niveau entreprise pour les déploiements critiques.
+
+## 🚀 Fonctionnalités principales
+
+### Sécurité de niveau aérospatial
+- **Authentification complète** (clés API, JWT, authentification basique)
+- **Signature et vérification de code** (basé sur HMAC-SHA256)
+- **Journal d'audit** (toutes les opérations sont enregistrées avec preuve d'intégrité)
+- **Limitation de débit** (limites configurables par utilisateur)
+- **Surveillance des ressources** (suivi CPU, GPU, mémoire)
+- **Bac à sable de fichiers** (accès restreint au système de fichiers)
+- **Mémoire sécurisée** (régions de mémoire chiffrées)
+- **Isolation GPU** (gestion dédiée des ressources GPU)
+- **Détection d'anomalies** (détection de menaces en temps réel)
+- **Isolation réseau** (pare-feu et segmentation réseau)
+- **Système de sauvegarde** (sauvegarde et récupération automatique de l'état)
+
+### Tolérance aux pannes
+- **Protection contre les délais d'attente** (toutes les opérations ont des délais configurables)
+- **Chiens de garde** (prévention des boucles infinies et des interblocages)
+- **Mécanismes de nouvelle tentative** (exponential backoff pour les pannes transitoires)
+- **Dégradation gracieuse** (le système continue avec une fonctionnalité réduite en cas de panne)
+- **Gestion des signaux** (arrêt propre sur SIGTERM/SIGINT)
+
+### Gestion des modèles
+- **Registre de modèles local** (stockage de métadonnées basé sur SQLite)
+- **Allama CLI** (commandes de gestion de modèles : pull, list, show, rm, cp, add, create, search, stats, validate)
+- **Support Modelfile** (DSL de définition de modèle pour les configurations personnalisées)
+- **REST API** (points de terminaison compatibles Ollama : /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+
+### Performance
+- Toutes les optimisations de performance llama.cpp conservées
+- Support Metal (Apple Silicon), CUDA (NVIDIA), HIP (AMD), Vulkan
+- Quantification de 1,5 à 8 bits
+- Inférence hybride CPU+GPU
+- Décodage spéculatif
+
+## 📋 Démarrage rapide
+
+### Construction à partir du code source
+
+```bash
+# Cloner le dépôt
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# Créer le répertoire de construction
+mkdir build && cd build
+
+# Configurer et construire
+cmake ..
+make -j$(nproc)
+
+# Installer (optionnel)
+sudo make install
+```
+
+### Utilisation d'Allama CLI
+
+```bash
+# Initialiser le registre de modèles
+./bin/allama stats
+
+# Ajouter un modèle local
+./bin/allama add my-model /path/to/model.gguf
+
+# Lister tous les modèles
+./bin/allama list
+
+# Afficher les détails du modèle
+./bin/allama show my-model
+
+# Valider l'intégrité du modèle
+./bin/allama validate my-model
+
+# Rechercher des modèles
+./bin/allama search "llama"
+
+# Démarrer le serveur avec le registre de modèles
+./bin/allama serve
+```
+
+### Utilisation du serveur amélioré
+
+```bash
+# Démarrer le serveur avec les fonctionnalités de sécurité activées
+./bin/llama-server \
+  --model-registry-path ~/.allama/registry.db \
+  --models-path ~/.allama/models \
+  --port 8080 \
+  --auth-api-key your-secret-key \
+  --enable-audit-log
+
+# Utiliser l'API avec authentification
+curl -H "Authorization: Bearer your-secret-key" \
+  http://localhost:8080/v1/chat/completions
+```
+
+## 🔒 Architecture de sécurité
+
+### Authentification
+
+Le système d'authentification prend en charge plusieurs méthodes :
+
+```c
+// Authentification par clé API
+auth_config_t config = {
+    .require_auth = true,
+    .api_keys = {"secret-key-1", "secret-key-2"},
+    .api_key_count = 2
+};
+auth_init(&config);
+
+// Authentification JWT
+auth_validate_jwt(token, &user_id);
+
+// Authentification basique
+auth_validate_basic(username, password, &user_id);
+```
+
+### Signature de code
+
+Signer et vérifier les fichiers de modèle pour garantir l'intégrité :
+
+```bash
+# Signer un fichier de modèle
+./bin/allama sign-model /path/to/model.gguf
+
+# Vérifier un fichier de modèle
+./bin/allama verify-model /path/to/model.gguf.sig
+
+# Signer un binaire
+./bin/allama sign-binary /path/to/binary
+
+# Vérifier un binaire
+./bin/allama verify-binary /path/to/binary.sig
+```
+
+### Journal d'audit
+
+Toutes les opérations liées à la sécurité sont enregistrées :
+
+```
+[INFO] [2024-01-01 12:00:00] AUTH: User authenticated via API key
+[INFO] [2024-01-01 12:00:05] CODE_SIGN: Model signature verified
+[WARNING] [2024-01-01 12:00:10] RATE_LIMIT: User exceeded rate limit
+[ERROR] [2024-01-01 12:00:15] SECURITY_VIOLATION: Invalid signature detected
+```
+
+## 🛡️ Tolérance aux pannes
+
+### Protection contre les délais d'attente
+
+Toutes les opérations ont des délais configurables :
+
+```c
+// Délai court (5 secondes) pour les opérations rapides
+ft_timeout_t timeout;
+ft_timeout_init(&timeout, SHORT_TIMEOUT);
+
+// Boucle avec protection contre les délais
+while (condition && !ft_timeout_check(&timeout)) {
+    // Effectuer le travail
+}
+
+ft_timeout_cleanup(&timeout);
+```
+
+### Chiens de garde
+
+Chiens de garde au niveau du système pour prévenir les blocages :
+
+```c
+// Initialiser la tolérance aux pannes globale
+ft_global_init();
+
+// Vérifier la demande d'arrêt
+if (ft_is_shutdown_requested()) {
+    // Arrêt propre
+    ft_global_cleanup();
+}
+```
+
+## 📊 Points de terminaison REST API
+
+### Points de terminaison compatibles Ollama
+
+- `GET /api/tags` - Lister tous les modèles
+- `GET /api/show?name=<model>` - Afficher les détails du modèle
+- `POST /api/delete` - Supprimer un modèle
+- `POST /api/copy` - Copier un modèle
+- `GET /api/ps` - Informations système et modèles en cours d'exécution
+- `POST /api/pull` - Tirer un modèle (espace réservé pour le registre distant)
+- `GET /api/version` - Informations de version
+
+### Points de terminaison compatibles OpenAI
+
+- `POST /v1/chat/completions` - Complétions de chat
+- `POST /v1/completions` - Complétions de texte
+- `POST /v1/embeddings` - Générer des embeddings
+
+## 🏗️ Architecture
+
+### Composants principaux
+
+```
+common/
+├── auth.c/h                    # Système d'authentification
+├── code-sign.c/h               # Signature et vérification de code
+├── audit-log.c/h               # Journal d'audit
+├── model-registry.c/h           # Registre de modèles
+├── modelfile.c/h               # Analyseur Modelfile
+├── resource-monitor.c/h         # Surveillance des ressources
+├── file-sandbox.c/h             # Bac à sable de fichiers
+├── rate-limit.c/h               # Limitation de débit
+├── secure-memory.c/h            # Mémoire sécurisée
+├── gpu-isolation.c/h            # Isolation GPU
+├── anomaly-detection.c/h        # Détection d'anomalies
+├── backup-system.c/h            # Système de sauvegarde
+├── network-isolation.c/h        # Isolation réseau
+└── fault-tolerance.c/h          # Framework de tolérance aux pannes
+
+tools/
+├── allama/                      # Outil CLI Allama
+└── server/                      # llama-server amélioré
+```
+
+## 🧪 Tests
+
+### Exécuter les tests de modules de sécurité
+
+```bash
+cd build
+./bin/test-security-modules
+```
+
+### Exécuter les tests CLI
+
+```bash
+./bin/test-allama-cli
+```
+
+### Exécuter les tests de registre de modèles
+
+```bash
+./bin/test-model-registry
+```
+
+## 📖 Documentation
+
+- [Exigences DO-178C](docs/DO178C_REQUIREMENTS.md) - Exigences de certification aérospatiale
+- [Analyse d'alignement Ollama](docs/OLLAMA_ALIGNMENT_GAP_ANALYSIS.md) - Comparaison des fonctionnalités avec Ollama
+- [Guide de construction](docs/build.md) - Instructions de construction
+- [Documentation du serveur](tools/server/README.md) - Configuration du serveur
+
+## 🤝 Contribution
+
+Ce projet suit les [directives de contribution llama.cpp](CONTRIBUTING.md) avec des exigences supplémentaires pour les fonctionnalités de sécurité :
+
+1. Tous les changements de sécurité doivent inclure des tests complets
+2. La signature de code doit être maintenue pour tous les binaires critiques pour la sécurité
+3. Le journal d'audit doit être ajouté pour toutes les nouvelles opérations liées à la sécurité
+4. Les mécanismes de tolérance aux pannes doivent être appliqués à toutes les nouvelles fonctionnalités
+
+**Important :** Ce projet n'accepte pas les demandes de tirage entièrement générées par l'IA. Les outils IA ne peuvent être utilisés que de manière assistive. Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour plus de détails.
+
+## 📄 Licence
+
+Licence MIT - Identique à [llama.cpp](https://github.com/ggml-org/llama.cpp)
+
+## 🙏 Remerciements
+
+Basé sur [llama.cpp](https://github.com/ggml-org/llama.cpp) par Georgi Gerganov et les contributeurs.
+
+Les améliorations de sécurité sont inspirées par les normes de l'industrie aérospatiale et les exigences de certification DO-178C.
+
+## 🔗 Liens
+
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - Projet original
+- [ggml](https://github.com/ggml-org/ggml) - Bibliothèque de tenseurs
+- [Ollama](https://github.com/ollama/ollama) - Référence de gestion de modèles
 
 ---
 
