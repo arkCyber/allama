@@ -298,3 +298,37 @@ if (TARGET gguf-model-data)
     target_link_libraries(export-graph-ops PRIVATE gguf-model-data)
     target_compile_definitions(export-graph-ops PRIVATE LLAMA_HF_FETCH)
 endif()
+
+# Aerospace-level security audit test
+llama_build(test-security-audit.c)
+llama_test(test-security-audit)
+
+# Aerospace-level security modules test
+llama_build(test-security-modules.c)
+llama_test(test-security-modules)
+
+# Allama CLI test
+llama_build(test-allama-cli.c)
+llama_test(test-allama-cli)
+
+# Model registry test
+llama_build(test-model-registry.c)
+target_include_directories(test-model-registry PRIVATE ${CMAKE_SOURCE_DIR}/common)
+target_link_libraries(test-model-registry PRIVATE llama-common sqlite3)
+llama_test(test-model-registry)
+
+# Modelfile parser test
+llama_build(test-modelfile.c)
+target_include_directories(test-modelfile PRIVATE ${CMAKE_SOURCE_DIR}/common)
+target_link_libraries(test-modelfile PRIVATE llama-common)
+llama_test(test-modelfile)
+
+# Fuzz testing (AFL/libFuzzer) for aerospace-level security
+if (LLAMA_SANITIZE_ADDRESS OR LLAMA_SANITIZE_UNDEFINED)
+    add_executable(fuzz-test-gguf-parser fuzz-test-gguf-parser.c)
+    target_link_libraries(fuzz-test-gguf-parser PRIVATE llama llama-common)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(fuzz-test-gguf-parser PRIVATE -fsanitize=fuzzer)
+        target_link_options(fuzz-test-gguf-parser PRIVATE -fsanitize=fuzzer)
+    endif()
+endif()

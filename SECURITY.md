@@ -1,9 +1,9 @@
-# Security Policy
+# Security Policy for allama
 
- - [**Reporting a vulnerability**](#reporting-a-vulnerability)
+- [**Reporting a vulnerability**](#reporting-a-vulnerability)
  - [**Requirements**](#requirements)
  - [**Covered Topics**](#covered-topics)
- - [**Using llama.cpp securely**](#using-llamacpp-securely)
+ - [**Using allama securely**](#using-allama-securely)
    - [Untrusted models](#untrusted-models)
    - [Untrusted inputs](#untrusted-inputs)
    - [Data privacy](#data-privacy)

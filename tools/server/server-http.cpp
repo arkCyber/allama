@@ -1,6 +1,7 @@
 #include "common.h"
 #include "server-http.h"
 #include "server-common.h"
+#include "server-model-registry.h"
 
 #include <cpp-httplib/httplib.h>
 
@@ -23,6 +24,7 @@
 class server_http_context::Impl {
 public:
     std::unique_ptr<httplib::Server> srv;
+    std::unique_ptr<server_model_registry_context> model_registry;
 };
 
 server_http_context::server_http_context()
@@ -295,6 +297,19 @@ bool server_http_context::init(const common_params & params) {
 #endif
         }
     }
+
+    //
+    // Model Registry API setup (ollama-compatible endpoints)
+    //
+
+    pimpl->model_registry = std::make_unique<server_model_registry_context>();
+    if (!pimpl->model_registry->init(params)) {
+        LOG_WRN("%s: failed to initialize model registry API, model management endpoints will not be available\n", __func__);
+        pimpl->model_registry.reset();
+    } else {
+        pimpl->model_registry->register_endpoints(*this);
+    }
+
     return true;
 }
 

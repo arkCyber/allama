@@ -473,6 +473,10 @@ struct common_params {
     std::vector<llama_model_kv_override> kv_overrides;
     std::vector<llama_model_tensor_buft_override> tensor_buft_overrides;
 
+    // model registry parameters
+    std::string model_registry_path = ""; // path to model registry database                      // NOLINT
+    std::string models_path          = ""; // path to model storage directory                         // NOLINT
+
     bool lora_init_without_apply = false; // only load lora to memory, but do not apply it to ctx (user can manually apply lora later using llama_adapter_lora_apply)
     std::vector<common_adapter_lora_info> lora_adapters; // lora adapter path with user defined scale
 

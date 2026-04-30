@@ -1,6 +1,7 @@
 #include "server-context.h"
 #include "server-http.h"
 #include "server-models.h"
+#include "server-model-registry.h"
 #include "server-cors-proxy.h"
 #include "server-tools.h"
 

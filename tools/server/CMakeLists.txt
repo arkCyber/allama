@@ -36,6 +36,8 @@ set(TARGET_SRCS
     server-http.h
     server-models.cpp
     server-models.h
+    server-model-registry.cpp
+    server-model-registry.h
 )
 
 option(LLAMA_BUILD_WEBUI "Build the embedded Web UI" ON)

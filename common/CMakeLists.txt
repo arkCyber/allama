@@ -104,6 +104,38 @@ add_library(${TARGET}
     speculative.h
     unicode.cpp
     unicode.h
+    audit-log.c
+    audit-log.h
+    auth.c
+    auth.h
+    code-sign.c
+    code-sign.h
+    resource-monitor.c
+    resource-monitor.h
+    file-sandbox.c
+    file-sandbox.h
+    rate-limit.c
+    rate-limit.h
+    secure-memory.c
+    secure-memory.h
+    gpu-isolation.c
+    gpu-isolation.h
+    anomaly-detection.c
+    anomaly-detection.h
+    backup-system.c
+    backup-system.h
+    network-isolation.c
+    network-isolation.h
+    model-registry.c
+    model-registry.h
+    modelfile.c
+    modelfile.h
+    http-download.c
+    http-download.h
+    fault-tolerance.c
+    fault-tolerance.h
+    auth.c
+    auth.h
     jinja/lexer.cpp
     jinja/lexer.h
     jinja/parser.cpp
@@ -135,7 +167,7 @@ if (BUILD_SHARED_LIBS)
 endif()
 
 target_link_libraries(${TARGET} PUBLIC  llama-common-base)
-target_link_libraries(${TARGET} PRIVATE cpp-httplib)
+target_link_libraries(${TARGET} PRIVATE cpp-httplib sqlite3 curl)
 
 if (LLAMA_LLGUIDANCE)
     include(ExternalProject)
