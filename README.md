@@ -50,9 +50,16 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 ### Model Management
 - **Local Model Registry** (SQLite-based metadata storage)
 - **Hugging Face Model Catalog** (cached catalog of available models with auto-update)
-- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem, catalog)
+- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem, catalog, cache, logs, tag)
 - **Modelfile Support** (model definition DSL for custom configurations)
 - **REST API** (Ollama-compatible endpoints: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+- **Tag Management** (add, remove, list custom tags for models)
+- **Cache Management** (view cache statistics, clear cache)
+- **Audit Logging** (view and clear audit logs)
+- **Configuration File Support** (load settings from ~/.allama/config)
+- **Command Aliases** (ls, remove, delete, copy, search, update)
+- **Color Output** (automatic terminal detection with NO_COLOR support)
+- **Edge Case Handling** (input validation and error handling)
 
 ### Performance
 - All llama.cpp performance optimizations preserved
@@ -107,6 +114,24 @@ sudo make install
 
 # Start server with model registry
 ./bin/allama serve
+
+# Manage model tags
+./bin/allama tag add llama3:latest production
+./bin/allama tag list llama3:latest
+./bin/allama tag remove llama3:latest production
+
+# Manage cache
+./bin/allama cache stats
+./bin/allama cache clear
+
+# View audit logs
+./bin/allama logs view
+./bin/allama logs clear
+
+# Use command aliases
+./bin/allama ls              # same as list
+./bin/allama remove model   # same as rm
+./bin/allama copy src dst   # same as cp
 ```
 
 ### Using the Enhanced Server
@@ -124,6 +149,51 @@ sudo make install
 curl -H "Authorization: Bearer your-secret-key" \
   http://localhost:8080/v1/chat/completions
 ```
+
+### Configuration File
+
+Create a configuration file at `~/.allama/config` to customize allama settings:
+
+```bash
+# Model registry settings
+registry_path=~/.allama/registry.db
+models_path=~/.allama/models
+max_models=1000
+
+# Model catalog settings
+catalog_path=~/.allama/catalog.db
+cache_path=~/.allama/cache
+remote_url=https://huggingface.co/ggml-org
+max_entries=10000
+cache_ttl=3600
+enable_auto_update=true
+```
+
+### CLI Features
+
+#### Color Output
+- Automatic terminal detection
+- Respects `NO_COLOR` environment variable
+- Respects `TERM` environment variable
+- Color-coded success, error, warning, and info messages
+
+#### Command Aliases
+- `ls` → `list`
+- `remove` → `rm`
+- `delete` → `rm`
+- `copy` → `cp`
+- `search` → `catalog`
+- `update` → `catalog-update`
+
+#### Enhanced Error Messages
+- Color-coded error messages
+- Usage information with examples
+- Better user guidance
+
+#### Input Validation
+- Model name validation (empty check, length check, invalid characters)
+- Tag name validation (empty check, length check)
+- Configuration key validation (whitelist-based)
 
 ## 🔒 Security Architecture
 
