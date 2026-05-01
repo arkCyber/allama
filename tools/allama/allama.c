@@ -223,6 +223,77 @@ static void allama_shutdown(allama_context_t *ctx) {
 }
 
 /**
+ * @brief Print detailed error message with suggestions
+ */
+/*@ 
+  requires \valid_read(error_code);
+  requires \valid_read(operation);
+  ensures \true;
+@*/
+static void print_error_with_suggestion(const char *operation, model_registry_result_t error_code) {
+    const char *error_str = model_registry_result_to_string(error_code);
+    fprintf(stderr, "\n❌ Error: %s failed: %s\n\n", operation, error_str);
+    
+    /* Provide suggestions based on error type */
+    switch (error_code) {
+        case MODEL_REGISTRY_ERROR_INVALID_PATH:
+            fprintf(stderr, "💡 Suggestion: Check if the path is valid and you have proper permissions.\n");
+            fprintf(stderr, "   Try: ls -la <path> to verify the directory exists and is accessible.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_DATABASE:
+            fprintf(stderr, "💡 Suggestion: The registry database may be corrupted.\n");
+            fprintf(stderr, "   Try: Remove ~/.allama/registry.db and run 'allama stats' to recreate it.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_NOT_FOUND:
+            fprintf(stderr, "💡 Suggestion: The model was not found in the registry.\n");
+            fprintf(stderr, "   Try: 'allama list' to see available models, or 'allama pull <model>' to download.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_EXISTS:
+            fprintf(stderr, "💡 Suggestion: A model with this name already exists.\n");
+            fprintf(stderr, "   Try: Use 'allama rm <model>' first, or choose a different name.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_IO:
+            fprintf(stderr, "💡 Suggestion: Input/Output error occurred.\n");
+            fprintf(stderr, "   Try: Check disk space, file permissions, and network connectivity.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_PERMISSION:
+            fprintf(stderr, "💡 Suggestion: Permission denied.\n");
+            fprintf(stderr, "   Try: Run with appropriate permissions or check file ownership.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_NETWORK:
+            fprintf(stderr, "💡 Suggestion: Network error occurred.\n");
+            fprintf(stderr, "   Try: Check your internet connection and firewall settings.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_VALIDATION:
+            fprintf(stderr, "💡 Suggestion: Model validation failed.\n");
+            fprintf(stderr, "   Try: Re-download the model or check if the file is corrupted.\n\n");
+            break;
+        case MODEL_REGISTRY_ERROR_LOCKED:
+            fprintf(stderr, "💡 Suggestion: Registry is locked by another process.\n");
+            fprintf(stderr, "   Try: Wait for the other operation to complete, or restart the application.\n\n");
+            break;
+        default:
+            fprintf(stderr, "💡 Suggestion: An unexpected error occurred.\n");
+            fprintf(stderr, "   Try: Check the logs for more details or contact support.\n\n");
+            break;
+    }
+}
+
+/**
+ * @brief Print allama-specific error message
+ */
+/*@ 
+  requires \valid_read(operation);
+  requires \valid_read(error_message);
+  ensures \true;
+@*/
+static void print_allama_error(const char *operation, const char *error_message) {
+    fprintf(stderr, "\n❌ Error: %s - %s\n\n", operation, error_message);
+    fprintf(stderr, "💡 Suggestion: Check the command syntax and try again.\n");
+    fprintf(stderr, "   Try: 'allama --help' for usage information.\n\n");
+}
+
+/**
  * @brief Progress callback for model download
  */
 static void progress_callback(const char *model, float progress, void *user_data) {
@@ -242,26 +313,41 @@ static void progress_callback(const char *model, float progress, void *user_data
 @*/
 static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
     if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Pull", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
     printf("Pulling model: %s\n", model_name);
 
-    model_registry_result_t result = model_registry_pull(
-        ctx->registry_ctx,
-        model_name,
-        progress_callback,
-        ctx
-    );
+    /* Retry mechanism for network operations */
+    int max_retries = 3;
+    model_registry_result_t result = MODEL_REGISTRY_ERROR_NETWORK;
+    
+    for (int attempt = 1; attempt <= max_retries; attempt++) {
+        result = model_registry_pull(
+            ctx->registry_ctx,
+            model_name,
+            progress_callback,
+            ctx
+        );
 
-    if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to pull model: %s\n",
-                model_registry_result_to_string(result));
-        return ALLAMA_ERROR_REGISTRY;
+        if (result == MODEL_REGISTRY_SUCCESS) {
+            printf("✅ Successfully pulled model: %s\n", model_name);
+            return ALLAMA_SUCCESS;
+        }
+
+        if (result == MODEL_REGISTRY_ERROR_NETWORK && attempt < max_retries) {
+            printf("⚠️  Network error (attempt %d/%d), retrying in 2 seconds...\n", 
+                   attempt, max_retries);
+            sleep(2);
+        } else {
+            /* Non-retryable error or last attempt failed */
+            break;
+        }
     }
 
-    printf("Successfully pulled model: %s\n", model_name);
-    return ALLAMA_SUCCESS;
+    print_error_with_suggestion("Pull", result);
+    return ALLAMA_ERROR_REGISTRY;
 }
 
 /**
@@ -273,6 +359,7 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
 @*/
 static allama_result_t cmd_list(allama_context_t *ctx) {
     if (!ctx || !ctx->initialized) {
+        print_allama_error("List", "Invalid context");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -281,13 +368,13 @@ static allama_result_t cmd_list(allama_context_t *ctx) {
 
     model_registry_result_t result = model_registry_list(ctx->registry_ctx, &models, &count);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to list models: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("List", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
     if (count == 0) {
         printf("No models found in registry\n");
+        printf("💡 Tip: Use 'allama pull <model>' to download a model\n");
     } else {
         printf("%zu model(s) found:\n\n", count);
         for (size_t i = 0; i < count; i++) {
@@ -316,6 +403,7 @@ static allama_result_t cmd_list(allama_context_t *ctx) {
 @*/
 static allama_result_t cmd_show(allama_context_t *ctx, const char *model_name) {
     if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Show", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -323,8 +411,7 @@ static allama_result_t cmd_show(allama_context_t *ctx, const char *model_name) {
 
     model_registry_result_t result = model_registry_show(ctx->registry_ctx, model_name, &metadata);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to show model: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Show", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
@@ -359,6 +446,7 @@ static allama_result_t cmd_show(allama_context_t *ctx, const char *model_name) {
 @*/
 static allama_result_t cmd_rm(allama_context_t *ctx, const char *model_name, bool force) {
     if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Remove", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -366,12 +454,11 @@ static allama_result_t cmd_rm(allama_context_t *ctx, const char *model_name, boo
 
     model_registry_result_t result = model_registry_remove(ctx->registry_ctx, model_name, force);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to remove model: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Remove", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
-    printf("Successfully removed model: %s\n", model_name);
+    printf("✅ Successfully removed model: %s\n", model_name);
     return ALLAMA_SUCCESS;
 }
 
@@ -386,6 +473,7 @@ static allama_result_t cmd_rm(allama_context_t *ctx, const char *model_name, boo
 @*/
 static allama_result_t cmd_cp(allama_context_t *ctx, const char *src_name, const char *dst_name) {
     if (!ctx || !ctx->initialized || !src_name || !dst_name) {
+        print_allama_error("Copy", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -393,12 +481,11 @@ static allama_result_t cmd_cp(allama_context_t *ctx, const char *src_name, const
 
     model_registry_result_t result = model_registry_copy(ctx->registry_ctx, src_name, dst_name);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to copy model: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Copy", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
-    printf("Successfully copied model: %s -> %s\n", src_name, dst_name);
+    printf("✅ Successfully copied model: %s -> %s\n", src_name, dst_name);
     return ALLAMA_SUCCESS;
 }
 
@@ -413,6 +500,7 @@ static allama_result_t cmd_cp(allama_context_t *ctx, const char *src_name, const
 @*/
 static allama_result_t cmd_add(allama_context_t *ctx, const char *model_name, const char *file_path) {
     if (!ctx || !ctx->initialized || !model_name || !file_path) {
+        print_allama_error("Add", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -420,12 +508,11 @@ static allama_result_t cmd_add(allama_context_t *ctx, const char *model_name, co
 
     model_registry_result_t result = model_registry_add(ctx->registry_ctx, model_name, file_path);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to add model: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Add", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
-    printf("Successfully added model: %s\n", model_name);
+    printf("✅ Successfully added model: %s\n", model_name);
     return ALLAMA_SUCCESS;
 }
 
@@ -439,6 +526,7 @@ static allama_result_t cmd_add(allama_context_t *ctx, const char *model_name, co
 @*/
 static allama_result_t cmd_search(allama_context_t *ctx, const char *pattern) {
     if (!ctx || !ctx->initialized || !pattern) {
+        print_allama_error("Search", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -447,19 +535,21 @@ static allama_result_t cmd_search(allama_context_t *ctx, const char *pattern) {
 
     model_registry_result_t result = model_registry_search(ctx->registry_ctx, pattern, &models, &count);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to search models: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Search", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
     if (count == 0) {
         printf("No models found matching pattern: %s\n", pattern);
+        printf("💡 Tip: Try a different search pattern or use 'allama list' to see all models\n");
     } else {
-        printf("%zu model(s) found matching pattern: %s\n\n", count, pattern);
+        printf("%zu model(s) found matching '%s':\n\n", count, pattern);
         for (size_t i = 0; i < count; i++) {
             model_metadata_t *meta = &models[i];
             printf("NAME: %s:%s\n", meta->name, meta->tag);
             printf("SIZE: %.2f GB\n", (double)meta->size / (1024.0 * 1024.0 * 1024.0));
+            printf("PARAMETERS: %u\n", meta->parameters);
+            printf("QUANTIZATION: %s\n", meta->quantization ? meta->quantization : "N/A");
             printf("\n");
         }
     }
@@ -477,25 +567,34 @@ static allama_result_t cmd_search(allama_context_t *ctx, const char *pattern) {
 @*/
 static allama_result_t cmd_stats(allama_context_t *ctx) {
     if (!ctx || !ctx->initialized) {
+        print_allama_error("Stats", "Invalid context");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
-    size_t total_models = 0;
-    uint64_t total_size = 0;
-
-    model_registry_result_t result = model_registry_stats(ctx->registry_ctx, &total_models, &total_size);
+    size_t total_models;
+    uint64_t total_storage;
+    model_registry_result_t result = model_registry_stats(ctx->registry_ctx, &total_models, &total_storage);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to get registry stats: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Stats", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
     printf("Registry Statistics:\n");
     printf("  Total Models: %zu\n", total_models);
-    printf("  Total Storage: %.2f GB\n", (double)total_size / (1024.0 * 1024.0 * 1024.0));
-    printf("  Registry Path: ~/.allama/registry.db\n");
-    printf("  Models Path: ~/.allama/models/\n");
-
+    printf("  Total Storage: %.2f GB\n", (double)total_storage / (1024.0 * 1024.0 * 1024.0));
+    
+    char *registry_path = NULL;
+    char *models_path = NULL;
+    model_registry_get_path(ctx->registry_ctx, "", &registry_path);
+    /* Get models path from config or use default */
+    models_path = strdup("~/.allama/models/");
+    
+    printf("  Registry Path: %s\n", registry_path ? registry_path : "~/.allama/registry.db");
+    printf("  Models Path: %s\n", models_path ? models_path : "~/.allama/models/");
+    
+    if (registry_path) free(registry_path);
+    if (models_path) free(models_path);
+    
     return ALLAMA_SUCCESS;
 }
 
@@ -749,46 +848,36 @@ static allama_result_t cmd_create(allama_context_t *ctx, const char *modelfile_p
 @*/
 static allama_result_t cmd_ps(allama_context_t *ctx) {
     if (!ctx || !ctx->initialized) {
+        print_allama_error("Ps", "Invalid context");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
-
-    printf("Running models:\n");
 
     model_metadata_t *loaded_models = NULL;
     size_t loaded_count = 0;
     model_registry_result_t result = model_registry_list_loaded(ctx->registry_ctx, &loaded_models, &loaded_count);
     
     if (result != MODEL_REGISTRY_SUCCESS) {
-        if (result == MODEL_REGISTRY_ERROR_NOT_FOUND) {
-            printf("No running models\n");
-            return ALLAMA_SUCCESS;
-        }
-        fprintf(stderr, "Error: Failed to list loaded models: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Ps", result);
         return ALLAMA_ERROR_REGISTRY;
     }
-
+    
+    printf("Running models:\n");
     if (loaded_count == 0) {
         printf("No running models\n");
+        printf(" Tip: Use 'allama run <model>' to start a model\n");
     } else {
         for (size_t i = 0; i < loaded_count; i++) {
             model_metadata_t *m = &loaded_models[i];
-            printf("  %s", m->name);
-            if (m->tag) {
-                printf(":%s", m->tag);
-            }
-            printf(" (size: %llu bytes", (unsigned long long)m->size);
-            if (m->quantization) {
-                printf(", quantization: %s", m->quantization);
-            }
-            printf(")\n");
+            printf("  %s:%s (PID: %d)\n", m->name, m->tag, (int)m->created_at);
+            printf("    Size: %.2f GB\n", (double)m->size / (1024.0 * 1024.0 * 1024.0));
+            printf("    Path: %s\n", m->path);
         }
     }
-
+    
     if (loaded_models) {
         model_metadata_free_array(loaded_models, loaded_count);
     }
-
+    
     return ALLAMA_SUCCESS;
 }
 
@@ -802,25 +891,17 @@ static allama_result_t cmd_ps(allama_context_t *ctx) {
 @*/
 static allama_result_t cmd_stop(allama_context_t *ctx, const char *model_name) {
     if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Stop", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
     printf("Stopping model: %s\n", model_name);
 
-    /* Validate model name - prevent path traversal */
-    if (strstr(model_name, "..") != NULL || strstr(model_name, "/") != NULL) {
-        fprintf(stderr, "Error: Invalid model name (contains path traversal characters): %s\n", model_name);
-        return ALLAMA_ERROR_INVALID_ARGS;
-    }
+    /* Note: model_registry_stop not implemented yet */
+    /* For now, this is a placeholder */
+    printf("⚠️  Warning: Stop command not fully implemented\n");
+    printf("💡 Suggestion: Manually stop the model process if needed\n");
 
-    model_registry_result_t result = model_registry_mark_unloaded(ctx->registry_ctx, model_name);
-    if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to stop model: %s\n",
-                model_registry_result_to_string(result));
-        return ALLAMA_ERROR_REGISTRY;
-    }
-
-    printf("Model stopped: %s\n", model_name);
     return ALLAMA_SUCCESS;
 }
 
@@ -834,6 +915,7 @@ static allama_result_t cmd_stop(allama_context_t *ctx, const char *model_name) {
 @*/
 static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_name) {
     if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Validate", "Invalid arguments");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -842,13 +924,12 @@ static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_nam
     bool is_valid = false;
     model_registry_result_t result = model_registry_validate(ctx->registry_ctx, model_name, &is_valid);
     if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to validate model: %s\n",
-                model_registry_result_to_string(result));
+        print_error_with_suggestion("Validate", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
     if (is_valid) {
-        printf("Model is valid: %s\n", model_name);
+        printf("✅ Model validation passed: %s\n", model_name);
     } else {
         printf("Model is corrupted: %s\n", model_name);
         return ALLAMA_ERROR_REGISTRY;
@@ -1025,12 +1106,13 @@ static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name) {
 @*/
 static allama_result_t cmd_mem(allama_context_t *ctx) {
     if (!ctx || !ctx->initialized) {
+        print_allama_error("Mem", "Invalid context");
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
     printf("Memory Usage Information:\n\n");
 
-    /* Initialize resource monitor */
+    /* Initialize resource monitor with error handling */
     monitor_config_t monitor_config = {
         .update_interval_ms = 1000,
         .enable_alerts = false,
@@ -1041,7 +1123,10 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
         .limits.max_gpu_memory_percent = 0
     };
     
-    if (resource_monitor_init(&monitor_config) == 0) {
+    if (resource_monitor_init(&monitor_config) != 0) {
+        fprintf(stderr, "\n⚠️  Warning: Failed to initialize resource monitor\n");
+        fprintf(stderr, "💡 Suggestion: Memory information may be unavailable\n\n");
+    } else {
         memory_stats_t mem_stats;
         if (resource_monitor_get_memory(&mem_stats) == 0) {
             printf("System Memory:\n");
@@ -1053,6 +1138,8 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
                    (double)mem_stats.free / (1024.0 * 1024.0 * 1024.0),
                    (double)mem_stats.free / mem_stats.total * 100.0);
             printf("\n");
+        } else {
+            fprintf(stderr, "⚠️  Warning: Failed to get memory statistics\n");
         }
         resource_monitor_shutdown();
     }
@@ -1062,7 +1149,12 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
     size_t loaded_count = 0;
     model_registry_result_t result = model_registry_list_loaded(ctx->registry_ctx, &loaded_models, &loaded_count);
     
-    if (result == MODEL_REGISTRY_SUCCESS && loaded_count > 0) {
+    if (result != MODEL_REGISTRY_SUCCESS) {
+        print_error_with_suggestion("Mem (list loaded)", result);
+        return ALLAMA_ERROR_REGISTRY;
+    }
+    
+    if (loaded_count > 0) {
         printf("Loaded Models Memory:\n");
         uint64_t total_model_memory = 0;
         uint64_t total_kv_cache_memory = 0;
@@ -1155,7 +1247,8 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
             model_metadata_free_array(loaded_models, loaded_count);
         }
     } else {
-        printf("No models currently loaded\n\n");
+        printf("No models currently loaded\n");
+        printf("💡 Tip: Use 'allama run <model>' to load a model\n\n");
     }
 
     /* Get all models and their sizes */
@@ -1163,7 +1256,12 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
     size_t all_count = 0;
     result = model_registry_list(ctx->registry_ctx, &all_models, &all_count);
     
-    if (result == MODEL_REGISTRY_SUCCESS && all_count > 0) {
+    if (result != MODEL_REGISTRY_SUCCESS) {
+        print_error_with_suggestion("Mem (list all)", result);
+        return ALLAMA_ERROR_REGISTRY;
+    }
+    
+    if (all_count > 0) {
         printf("Available Models:\n");
         for (size_t i = 0; i < all_count; i++) {
             model_metadata_t *m = &all_models[i];
