@@ -660,6 +660,25 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
+    /* Validate model name */
+    if (strlen(model_name) == 0) {
+        fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (strlen(model_name) > 256) {
+        fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    /* Check for invalid characters */
+    for (const char *p = model_name; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == '\0') {
+            fprintf(stderr, "%sError: Model name contains invalid characters%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+    }
+
     printf("Pulling model: %s\n", model_name);
 
     /* Check if model exists in catalog for download URL */
@@ -875,6 +894,17 @@ static allama_result_t cmd_show(allama_context_t *ctx, const char *model_name) {
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
+    /* Validate model name */
+    if (strlen(model_name) == 0) {
+        fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (strlen(model_name) > 256) {
+        fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
     model_metadata_t *metadata = NULL;
 
     model_registry_result_t result = model_registry_show(ctx->registry_ctx, model_name, &metadata);
@@ -915,6 +945,17 @@ static allama_result_t cmd_show(allama_context_t *ctx, const char *model_name) {
 static allama_result_t cmd_rm(allama_context_t *ctx, const char *model_name, bool force) {
     if (!ctx || !ctx->initialized || !model_name) {
         print_allama_error("Remove", "Invalid arguments");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    /* Validate model name */
+    if (strlen(model_name) == 0) {
+        fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (strlen(model_name) > 256) {
+        fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
@@ -1391,6 +1432,17 @@ static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_nam
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
+    /* Validate model name */
+    if (strlen(model_name) == 0) {
+        fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (strlen(model_name) > 256) {
+        fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
     printf("Validating model: %s\n", model_name);
 
     bool is_valid = false;
@@ -1466,6 +1518,22 @@ static allama_result_t cmd_serve(allama_context_t *ctx) {
   ensures \result == ALLAMA_SUCCESS || \result == ALLAMA_ERROR_REGISTRY || \result == ALLAMA_ERROR_IO;
 @*/
 static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name) {
+    if (!ctx || !ctx->initialized || !model_name) {
+        print_allama_error("Run", "Invalid arguments");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    /* Validate model name */
+    if (strlen(model_name) == 0) {
+        fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (strlen(model_name) > 256) {
+        fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
     /* Check if model exists in registry */
     model_metadata_t *models = NULL;
     size_t count = 0;
@@ -2032,16 +2100,47 @@ static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const 
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
+    /* Validate action */
     if (!action) {
         action = "list";  /* Default action */
     }
 
-    if (strcmp(action, "add") == 0) {
-        if (!model_name || !tag_name) {
-            fprintf(stderr, "Error: tag add requires model name and tag\n");
+    if (strcmp(action, "add") == 0 || strcmp(action, "remove") == 0) {
+        /* Validate model name */
+        if (!model_name || strlen(model_name) == 0) {
+            fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
             return ALLAMA_ERROR_INVALID_ARGS;
         }
 
+        if (strlen(model_name) > 256) {
+            fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        /* Validate tag name */
+        if (!tag_name || strlen(tag_name) == 0) {
+            fprintf(stderr, "%sError: Tag name cannot be empty%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        if (strlen(tag_name) > 128) {
+            fprintf(stderr, "%sError: Tag name too long (max 128 characters)%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+    } else if (strcmp(action, "list") == 0) {
+        /* Validate model name */
+        if (!model_name || strlen(model_name) == 0) {
+            fprintf(stderr, "%sError: Model name cannot be empty%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        if (strlen(model_name) > 256) {
+            fprintf(stderr, "%sError: Model name too long (max 256 characters)%s\n", color_error(), color_reset());
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+    }
+
+    if (strcmp(action, "add") == 0) {
         model_registry_result_t result = model_registry_add_tag(ctx->registry_ctx, model_name, tag_name);
         if (result == MODEL_REGISTRY_SUCCESS) {
             printf("%s✅ Added tag '%s' to model '%s'%s\n", color_success(), tag_name, model_name, color_reset());
@@ -2057,11 +2156,6 @@ static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const 
             return ALLAMA_ERROR_REGISTRY;
         }
     } else if (strcmp(action, "remove") == 0) {
-        if (!model_name || !tag_name) {
-            fprintf(stderr, "Error: tag remove requires model name and tag\n");
-            return ALLAMA_ERROR_INVALID_ARGS;
-        }
-
         model_registry_result_t result = model_registry_remove_tag(ctx->registry_ctx, model_name, tag_name);
         if (result == MODEL_REGISTRY_SUCCESS) {
             printf("%s✅ Removed tag '%s' from model '%s'%s\n", color_success(), tag_name, model_name, color_reset());
@@ -2071,11 +2165,6 @@ static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const 
             return ALLAMA_ERROR_REGISTRY;
         }
     } else if (strcmp(action, "list") == 0) {
-        if (!model_name) {
-            fprintf(stderr, "Error: tag list requires model name\n");
-            return ALLAMA_ERROR_INVALID_ARGS;
-        }
-
         char **tags = NULL;
         size_t count = 0;
         model_registry_result_t result = model_registry_list_tags(ctx->registry_ctx, model_name, &tags, &count);
