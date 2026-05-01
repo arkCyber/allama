@@ -24,6 +24,57 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+/* Color output support */
+#define COLOR_RESET   "\033[0m"
+#define COLOR_RED     "\033[31m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_WHITE   "\033[37m"
+#define COLOR_BOLD    "\033[1m"
+
+static bool use_color = true;
+
+static void enable_color_output(void) {
+    const char *term = getenv("TERM");
+    const char *no_color = getenv("NO_COLOR");
+    
+    /* Check if we're in a terminal that supports color */
+    if (no_color != NULL && no_color[0] != '\0') {
+        use_color = false;
+        return;
+    }
+    
+    if (!term || strcmp(term, "dumb") == 0) {
+        use_color = false;
+        return;
+    }
+    
+    use_color = true;
+}
+
+static const char *color_success(void) {
+    return use_color ? COLOR_GREEN COLOR_BOLD : "";
+}
+
+static const char *color_error(void) {
+    return use_color ? COLOR_RED COLOR_BOLD : "";
+}
+
+static const char *color_warning(void) {
+    return use_color ? COLOR_YELLOW COLOR_BOLD : "";
+}
+
+static const char *color_info(void) {
+    return use_color ? COLOR_CYAN COLOR_BOLD : "";
+}
+
+static const char *color_reset(void) {
+    return use_color ? COLOR_RESET : "";
+}
+
 /* ACSL annotations for formal verification */
 /*@ predicate valid_allama_context(struct allama_context *ctx) = 
     \valid(ctx) && 
@@ -462,7 +513,7 @@ static void print_error_with_suggestion(const char *operation, model_registry_re
   ensures \true;
 @*/
 static void print_allama_error(const char *operation, const char *error_message) {
-    fprintf(stderr, "\n❌ Error: %s - %s\n\n", operation, error_message);
+    fprintf(stderr, "\n%s❌ Error: %s - %s%s\n\n", color_error(), operation, error_message, color_reset());
     fprintf(stderr, "💡 Suggestion: Check the command syntax and try again.\n");
     fprintf(stderr, "   Try: 'allama --help' for usage information.\n\n");
 }
@@ -471,7 +522,7 @@ static void print_allama_error(const char *operation, const char *error_message)
  * @brief Version command handler
  */
 static allama_result_t cmd_version(void) {
-    printf("allama version 1.0.0\n");
+    printf("%sallama%s version 1.0.0\n", color_info(), color_reset());
     printf("Model Management CLI for allama\n");
     printf("Build: %s %s\n", __DATE__, __TIME__);
     return ALLAMA_SUCCESS;
@@ -697,10 +748,10 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
 
         if (result == MODEL_REGISTRY_SUCCESS) {
             if (is_auto_mode && catalog_entry && catalog_entry->tag) {
-                printf("✅ Successfully pulled model: %s:%s (requested %s:auto)\n",
-                       model_name_copy, catalog_entry->tag, model_name_copy);
+                printf("%s✅ Successfully pulled model: %s:%s (requested %s:auto)%s\n", 
+                       color_success(), model_name_copy, catalog_entry->tag, model_name_copy, color_reset());
             } else {
-                printf("✅ Successfully pulled model: %s\n", model_name);
+                printf("%s✅ Successfully pulled model: %s%s\n", color_success(), model_name, color_reset());
             }
             if (download_url) {
                 free(download_url);
@@ -710,12 +761,13 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
 
         if (result == MODEL_REGISTRY_ERROR_NETWORK && attempt < max_retries) {
             if (download_url && attempt == 1) {
-                printf("⚠️  Catalog URL failed, retrying with default registry URL...\n");
+                printf("%s⚠️  Catalog URL failed, retrying with default registry URL...%s\n", 
+                       color_warning(), color_reset());
                 free(download_url);
                 download_url = NULL;
             }
-            printf("⚠️  Network error (attempt %d/%d), retrying in 2 seconds...\n", 
-                   attempt, max_retries);
+            printf("%s⚠️  Network error (attempt %d/%d), retrying in 2 seconds...%s\n", 
+                   color_warning(), attempt, max_retries, color_reset());
             sleep(2);
         } else {
             /* Non-retryable error or last attempt failed */
@@ -1956,13 +2008,13 @@ static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const 
 
         model_registry_result_t result = model_registry_add_tag(ctx->registry_ctx, model_name, tag_name);
         if (result == MODEL_REGISTRY_SUCCESS) {
-            printf("✅ Added tag '%s' to model '%s'\n", tag_name, model_name);
+            printf("%s✅ Added tag '%s' to model '%s'%s\n", color_success(), tag_name, model_name, color_reset());
             return ALLAMA_SUCCESS;
         } else if (result == MODEL_REGISTRY_ERROR_EXISTS) {
-            fprintf(stderr, "Error: Tag '%s' already exists for model '%s'\n", tag_name, model_name);
+            fprintf(stderr, "%sError: Tag '%s' already exists for model '%s'%s\n", color_error(), tag_name, model_name, color_reset());
             return ALLAMA_ERROR_REGISTRY;
         } else if (result == MODEL_REGISTRY_ERROR_NOT_FOUND) {
-            fprintf(stderr, "Error: Model '%s' not found\n", model_name);
+            fprintf(stderr, "%sError: Model '%s' not found%s\n", color_error(), model_name, color_reset());
             return ALLAMA_ERROR_REGISTRY;
         } else {
             print_error_with_suggestion("Tag", result);
@@ -1976,7 +2028,7 @@ static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const 
 
         model_registry_result_t result = model_registry_remove_tag(ctx->registry_ctx, model_name, tag_name);
         if (result == MODEL_REGISTRY_SUCCESS) {
-            printf("✅ Removed tag '%s' from model '%s'\n", tag_name, model_name);
+            printf("%s✅ Removed tag '%s' from model '%s'%s\n", color_success(), tag_name, model_name, color_reset());
             return ALLAMA_SUCCESS;
         } else {
             print_error_with_suggestion("Tag", result);
@@ -2234,6 +2286,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* Enable color output */
+    enable_color_output();
+
     /* Initialize allama */
     allama_result_t result = allama_init(&ctx, verbose);
     if (result != ALLAMA_SUCCESS) {
@@ -2247,12 +2302,29 @@ int main(int argc, char *argv[]) {
         return ALLAMA_ERROR_INVALID_ARGS;
     }
 
+    /* Command aliases */
+    if (strcmp(command, "ls") == 0) {
+        command = "list";
+    } else if (strcmp(command, "remove") == 0) {
+        command = "rm";
+    } else if (strcmp(command, "delete") == 0) {
+        command = "rm";
+    } else if (strcmp(command, "copy") == 0) {
+        command = "cp";
+    } else if (strcmp(command, "search") == 0) {
+        command = "catalog";
+    } else if (strcmp(command, "update") == 0) {
+        command = "catalog-update";
+    }
+
     /* Execute command */
     allama_result_t cmd_result = ALLAMA_SUCCESS;
 
     if (strcmp(command, "pull") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: pull command requires model name\n");
+            fprintf(stderr, "%sError: pull command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama pull <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama pull llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_pull(&ctx, argv[optind + 1]);
@@ -2263,7 +2335,9 @@ int main(int argc, char *argv[]) {
         cmd_result = cmd_ps(&ctx);
     } else if (strcmp(command, "stop") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: stop command requires model name\n");
+            fprintf(stderr, "%sError: stop command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama stop <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama stop llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             if (!confirm_action("stop", argv[optind + 1])) {
@@ -2275,14 +2349,18 @@ int main(int argc, char *argv[]) {
         }
     } else if (strcmp(command, "show") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: show command requires model name\n");
+            fprintf(stderr, "%sError: show command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama show <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama show llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_show(&ctx, argv[optind + 1]);
         }
     } else if (strcmp(command, "rm") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: rm command requires model name\n");
+            fprintf(stderr, "%sError: rm command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama rm <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama rm llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             if (!confirm_action("remove", argv[optind + 1])) {
@@ -2294,28 +2372,36 @@ int main(int argc, char *argv[]) {
         }
     } else if (strcmp(command, "cp") == 0) {
         if (optind + 2 >= argc) {
-            fprintf(stderr, "Error: cp command requires source and destination names\n");
+            fprintf(stderr, "%sError: cp command requires source and destination names%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama cp <src> <dst>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama cp llama3:latest llama3:backup%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_cp(&ctx, argv[optind + 1], argv[optind + 2]);
         }
     } else if (strcmp(command, "add") == 0) {
         if (optind + 2 >= argc) {
-            fprintf(stderr, "Error: add command requires model name and file path\n");
+            fprintf(stderr, "%sError: add command requires model name and file path%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama add <name> <path>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama add mymodel /path/to/model.gguf%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_add(&ctx, argv[optind + 1], argv[optind + 2]);
         }
     } else if (strcmp(command, "create") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: create command requires Modelfile path\n");
+            fprintf(stderr, "%sError: create command requires Modelfile path%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama create <modelfile>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama create Modelfile%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_create(&ctx, argv[optind + 1]);
         }
     } else if (strcmp(command, "search") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: search command requires pattern\n");
+            fprintf(stderr, "%sError: search command requires pattern%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama search <pattern>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama search llama%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_search(&ctx, argv[optind + 1]);
@@ -2324,14 +2410,18 @@ int main(int argc, char *argv[]) {
         cmd_result = cmd_stats(&ctx);
     } else if (strcmp(command, "validate") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: validate command requires model name\n");
+            fprintf(stderr, "%sError: validate command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama validate <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama validate llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_validate(&ctx, argv[optind + 1]);
         }
     } else if (strcmp(command, "run") == 0) {
         if (optind + 1 >= argc) {
-            fprintf(stderr, "Error: run command requires model name\n");
+            fprintf(stderr, "%sError: run command requires model name%s\n", color_error(), color_reset());
+            fprintf(stderr, "%sUsage: allama run <model>%s\n", color_info(), color_reset());
+            fprintf(stderr, "%sExample: allama run llama3:latest%s\n", color_info(), color_reset());
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
             cmd_result = cmd_run(&ctx, argv[optind + 1]);
