@@ -128,6 +128,8 @@ add_library(${TARGET}
     network-isolation.h
     model-registry.c
     model-registry.h
+    model-catalog.c
+    model-catalog.h
     modelfile.c
     modelfile.h
     http-download.c

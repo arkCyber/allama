@@ -11,6 +11,7 @@
  */
 
 #include "model-registry.h"
+#include "model-catalog.h"
 #include "modelfile.h"
 #include "audit-log.h"
 #include "resource-monitor.h"
@@ -33,6 +34,7 @@
  */
 typedef struct {
     model_registry_context_t *registry_ctx;
+    model_catalog_context_t *catalog_ctx;
     modelfile_parser_context_t *modelfile_ctx;
     int initialized;
     bool verbose;
@@ -94,6 +96,7 @@ static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_nam
 static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name);
 static allama_result_t cmd_serve(allama_context_t *ctx);
 static allama_result_t cmd_mem(allama_context_t *ctx);
+static allama_result_t cmd_catalog(allama_context_t *ctx);
 
 /**
  * @brief Print usage information
@@ -120,6 +123,7 @@ static void print_usage(const char *program_name) {
     printf("  run <model>       Run a model for inference\n");
     printf("  serve             Start the llama-server with model registry\n");
     printf("  mem               Display memory usage and model memory requirements\n");
+    printf("  catalog           List available models from Hugging Face catalog\n");
     printf("\n");
     printf("Options:\n");
     printf("  -v, --verbose     Enable verbose output\n");
@@ -183,6 +187,38 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
         return ALLAMA_ERROR_REGISTRY;
     }
 
+    /* Initialize model catalog */
+    model_catalog_config_t catalog_config = {
+        .catalog_path = NULL,      /* Use default */
+        .cache_path = NULL,        /* Use default */
+        .remote_url = NULL,        /* Use default Hugging Face */
+        .max_entries = 10000,
+        .cache_ttl = 3600,         /* 1 hour */
+        .enable_auto_update = true,
+        .enable_audit = true
+    };
+
+    model_catalog_result_t catalog_result = model_catalog_init(&catalog_config, &ctx->catalog_ctx);
+    if (catalog_result != MODEL_CATALOG_SUCCESS) {
+        fprintf(stderr, "Error: Failed to initialize model catalog: %s\n",
+                model_catalog_result_to_string(catalog_result));
+        modelfile_parser_shutdown(ctx->modelfile_ctx);
+        model_registry_shutdown(ctx->registry_ctx);
+        return ALLAMA_ERROR_REGISTRY;
+    }
+
+    /* Auto-update catalog on startup */
+    if (catalog_config.enable_auto_update) {
+        catalog_result = model_catalog_update(ctx->catalog_ctx);
+        if (catalog_result != MODEL_CATALOG_SUCCESS) {
+            fprintf(stderr, "Warning: Failed to update model catalog: %s\n",
+                    model_catalog_result_to_string(catalog_result));
+            /* Continue anyway - catalog update failure is not fatal */
+        } else if (verbose) {
+            printf("Model catalog updated successfully\n");
+        }
+    }
+
     ctx->initialized = 1;
 
     if (verbose) {
@@ -209,6 +245,11 @@ static void allama_shutdown(allama_context_t *ctx) {
         ctx->registry_ctx = NULL;
     }
 
+    if (ctx->catalog_ctx) {
+        model_catalog_shutdown(ctx->catalog_ctx);
+        ctx->catalog_ctx = NULL;
+    }
+
     if (ctx->modelfile_ctx) {
         modelfile_parser_shutdown(ctx->modelfile_ctx);
         ctx->modelfile_ctx = NULL;
@@ -219,6 +260,51 @@ static void allama_shutdown(allama_context_t *ctx) {
 
     if (ctx->verbose) {
         printf("allama shutdown complete\n");
+    }
+}
+
+/**
+ * @brief Print catalog error message with suggestions
+ */
+/*@ 
+  requires \valid_read(error_code);
+  requires \valid_read(operation);
+  ensures \true;
+@*/
+static void print_catalog_error_with_suggestion(const char *operation, model_catalog_result_t error_code) {
+    const char *error_str = model_catalog_result_to_string(error_code);
+    fprintf(stderr, "\n❌ Error: %s failed: %s\n\n", operation, error_str);
+    
+    /* Provide suggestions based on error type */
+    switch (error_code) {
+        case MODEL_CATALOG_ERROR_INVALID_PATH:
+            fprintf(stderr, "💡 Suggestion: Check if the catalog path is valid.\n");
+            fprintf(stderr, "   Try: ls -la ~/.allama/ to verify the directory exists.\n\n");
+            break;
+        case MODEL_CATALOG_ERROR_DATABASE:
+            fprintf(stderr, "💡 Suggestion: The catalog database may be corrupted.\n");
+            fprintf(stderr, "   Try: Remove ~/.allama/catalog.db and run 'allama catalog' to recreate it.\n\n");
+            break;
+        case MODEL_CATALOG_ERROR_NETWORK:
+            fprintf(stderr, "💡 Suggestion: Network error occurred while fetching catalog.\n");
+            fprintf(stderr, "   Try: Check your internet connection and firewall settings.\n\n");
+            break;
+        case MODEL_CATALOG_ERROR_IO:
+            fprintf(stderr, "💡 Suggestion: Input/Output error occurred.\n");
+            fprintf(stderr, "   Try: Check disk space and file permissions.\n\n");
+            break;
+        case MODEL_CATALOG_ERROR_PERMISSION:
+            fprintf(stderr, "💡 Suggestion: Permission denied.\n");
+            fprintf(stderr, "   Try: Run with appropriate permissions or check file ownership.\n\n");
+            break;
+        case MODEL_CATALOG_ERROR_CORRUPTED:
+            fprintf(stderr, "💡 Suggestion: Catalog data is corrupted.\n");
+            fprintf(stderr, "   Try: Remove ~/.allama/catalog.db and run 'allama catalog' to recreate it.\n\n");
+            break;
+        default:
+            fprintf(stderr, "💡 Suggestion: An unexpected error occurred.\n");
+            fprintf(stderr, "   Try: Check the logs for more details.\n\n");
+            break;
     }
 }
 
@@ -1287,6 +1373,59 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
 }
 
 /**
+ * @brief Catalog command handler - list available models from Hugging Face catalog
+ */
+/*@ 
+  requires \valid_read(ctx);
+  ensures \result == ALLAMA_SUCCESS || \result != ALLAMA_SUCCESS;
+@*/
+static allama_result_t cmd_catalog(allama_context_t *ctx) {
+    if (!ctx || !ctx->initialized) {
+        print_allama_error("Catalog", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    printf("Hugging Face Model Catalog:\n\n");
+
+    model_catalog_entry_t *entries = NULL;
+    size_t count = 0;
+    model_catalog_result_t result = model_catalog_list(ctx->catalog_ctx, &entries, &count);
+    
+    if (result != MODEL_CATALOG_SUCCESS) {
+        print_catalog_error_with_suggestion("Catalog", result);
+        return ALLAMA_ERROR_REGISTRY;
+    }
+
+    if (count == 0) {
+        printf("No models found in catalog\n");
+        printf("💡 Tip: Use 'allama catalog-update' to refresh the catalog\n");
+    } else {
+        printf("%zu model(s) available:\n\n", count);
+        for (size_t i = 0; i < count; i++) {
+            model_catalog_entry_t *entry = &entries[i];
+            printf("NAME: %s:%s\n", entry->name, entry->tag);
+            printf("SIZE: %.2f GB\n", (double)entry->size / (1024.0 * 1024.0 * 1024.0));
+            printf("PARAMETERS: %u\n", entry->parameters);
+            printf("QUANTIZATION: %s\n", entry->quantization ? entry->quantization : "N/A");
+            printf("ARCHITECTURE: %s\n", entry->architecture ? entry->architecture : "N/A");
+            printf("LICENSE: %s\n", entry->license ? entry->license : "N/A");
+            printf("AUTHOR: %s\n", entry->author ? entry->author : "N/A");
+            if (entry->description) {
+                printf("DESCRIPTION: %s\n", entry->description);
+            }
+            printf("DOWNLOAD: allama pull %s:%s\n", entry->name, entry->tag);
+            printf("\n");
+        }
+    }
+
+    if (entries) {
+        model_catalog_entry_free_array(entries, count);
+    }
+
+    return ALLAMA_SUCCESS;
+}
+
+/**
  * @brief Main function
  */
 int main(int argc, char *argv[]) {
@@ -1418,6 +1557,8 @@ int main(int argc, char *argv[]) {
         cmd_result = cmd_serve(&ctx);
     } else if (strcmp(command, "mem") == 0) {
         cmd_result = cmd_mem(&ctx);
+    } else if (strcmp(command, "catalog") == 0) {
+        cmd_result = cmd_catalog(&ctx);
     } else {
         fprintf(stderr, "Error: Unknown command: %s\n", command);
         print_usage(argv[0]);
