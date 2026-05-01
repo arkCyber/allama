@@ -897,11 +897,15 @@ static allama_result_t cmd_stop(allama_context_t *ctx, const char *model_name) {
 
     printf("Stopping model: %s\n", model_name);
 
-    /* Note: model_registry_stop not implemented yet */
-    /* For now, this is a placeholder */
-    printf("⚠️  Warning: Stop command not fully implemented\n");
-    printf("💡 Suggestion: Manually stop the model process if needed\n");
+    /* Mark the model as not loaded in the registry */
+    model_registry_result_t result = model_registry_mark_unloaded(ctx->registry_ctx, model_name);
+    if (result != MODEL_REGISTRY_SUCCESS) {
+        print_error_with_suggestion("Stop", result);
+        return ALLAMA_ERROR_REGISTRY;
+    }
 
+    printf("✅ Successfully marked model as stopped: %s\n", model_name);
+    printf("💡 Note: If the model process is still running, you may need to manually terminate it\n");
     return ALLAMA_SUCCESS;
 }
 
