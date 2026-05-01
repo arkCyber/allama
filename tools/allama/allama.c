@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <ctype.h>
 
 /* Color output support */
 #define COLOR_RESET   "\033[0m"
@@ -211,40 +212,90 @@ static void print_usage(const char *program_name) {
 }
 
 /**
+ * @brief Validate configuration key
+ */
+static bool is_valid_config_key(const char *key) {
+    if (!key || key[0] == '\0') return false;
+    
+    /* Check if key starts with # (comment) */
+    if (key[0] == '#') return false;
+    
+    /* Valid keys */
+    const char *valid_keys[] = {
+        "registry_path",
+        "models_path",
+        "catalog_path",
+        "cache_path",
+        "remote_registry_url",
+        "remote_catalog_url",
+        NULL
+    };
+    
+    for (int i = 0; valid_keys[i] != NULL; i++) {
+        if (strcmp(key, valid_keys[i]) == 0) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
  * @brief Load configuration from file
  */
+/*@ 
+  requires \valid_read(config_path);
+  ensures \true;
+@*/
 static void load_config(const char *config_path, model_registry_config_t *registry_config, model_catalog_config_t *catalog_config) {
     FILE *file = fopen(config_path, "r");
     if (!file) {
-        return;  /* Use defaults if config file doesn't exist */
+        /* Config file doesn't exist, use defaults */
+        return;
     }
 
     char line[512];
     while (fgets(line, sizeof(line), file)) {
-        /* Remove newline */
-        line[strcspn(line, "\n")] = 0;
-
-        /* Skip comments and empty lines */
-        if (line[0] == '#' || line[0] == '\0') {
-            continue;
-        }
-
-        /* Parse key=value pairs */
-        char *key = strtok(line, "=");
-        char *value = strtok(NULL, "=");
-        if (!key || !value) {
-            continue;
-        }
-
         /* Trim whitespace */
-        while (*key == ' ') key++;
-        while (*value == ' ') value++;
+        char *start = line;
+        while (*start && isspace((unsigned char)*start)) start++;
+        
+        /* Skip empty lines and comments */
+        if (*start == '\0' || *start == '#') continue;
+        
+        /* Find end */
+        char *end = start + strlen(start) - 1;
+        while (end > start && isspace((unsigned char)*end)) end--;
+        *(end + 1) = '\0';
+        
+        /* Find key-value separator */
+        char *eq = strchr(start, '=');
+        if (!eq) continue;
+        
+        /* Split key and value */
+        *eq = '\0';
+        char *key = start;
+        char *value = eq + 1;
+        
+        /* Trim key and value */
+        while (*key && isspace((unsigned char)*key)) key++;
+        while (*value && isspace((unsigned char)*value)) value++;
+        
         char *key_end = key + strlen(key) - 1;
-        while (key_end > key && *key_end == ' ') *key_end-- = 0;
+        while (key_end > key && isspace((unsigned char)*key_end)) key_end--;
+        *(key_end + 1) = '\0';
+        
         char *value_end = value + strlen(value) - 1;
-        while (value_end > value && *value_end == ' ') *value_end-- = 0;
-
-        /* Apply configuration */
+        while (value_end > value && isspace((unsigned char)*value_end)) value_end--;
+        *(value_end + 1) = '\0';
+        
+        /* Validate key */
+        if (!is_valid_config_key(key)) {
+            fprintf(stderr, "Warning: Unknown config key '%s' in %s\n", key, config_path);
+            continue;
+        }
+        
+        /* Set configuration values */
         if (strcmp(key, "registry_path") == 0) {
             registry_config->registry_path = strdup(value);
         } else if (strcmp(key, "models_path") == 0) {
@@ -289,42 +340,35 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
     audit_log_init("/tmp/allama_audit.log", true, 10 * 1024 * 1024);
 
     /* Load configuration from file */
-    const char *config_file = getenv("HOME");
+    const char *home = getenv("HOME");
     char config_path[512];
-    if (config_file) {
-        snprintf(config_path, sizeof(config_path), "%s/.allama/config", config_file);
+    if (home) {
+        snprintf(config_path, sizeof(config_path), "%s/.allama/config", home);
     } else {
         strcpy(config_path, "~/.allama/config");
     }
 
+    /* Initialize default configurations */
+    model_registry_config_t registry_config = {0};
+    model_catalog_config_t catalog_config = {0};
+    
+    /* Load configuration from file */
+    load_config(config_path, &registry_config, &catalog_config);
+
     /* Initialize model registry */
-    model_registry_config_t config = {
-        .registry_path = NULL,  /* Use default */
-        .models_path = NULL,    /* Use default */
-        .max_models = 1000,
-        .max_storage = 100ULL * 1024 * 1024 * 1024,  /* 100 GB */
-        .enable_audit = true,
-        .enable_validation = true
-    };
+    model_registry_result_t registry_result = model_registry_init(&registry_config, &ctx->registry_ctx);
+    if (registry_result != MODEL_REGISTRY_SUCCESS) {
+        fprintf(stderr, "Error: Failed to initialize model registry: %s\n", 
+                model_registry_result_to_string(registry_result));
+        return ALLAMA_ERROR_REGISTRY;
+    }
 
     /* Initialize model catalog */
-    model_catalog_config_t catalog_config = {
-        .catalog_path = NULL,      /* Use default */
-        .cache_path = NULL,        /* Use default */
-        .remote_url = NULL,        /* Use default Hugging Face */
-        .max_entries = 10000,
-        .cache_ttl = 3600,         /* 1 hour */
-        .enable_auto_update = true,
-        .enable_audit = true
-    };
-
-    /* Load configuration from file */
-    load_config(config_path, &config, &catalog_config);
-
-    model_registry_result_t result = model_registry_init(&config, &ctx->registry_ctx);
-    if (result != MODEL_REGISTRY_SUCCESS) {
-        fprintf(stderr, "Error: Failed to initialize model registry: %s\n",
-                model_registry_result_to_string(result));
+    model_catalog_result_t catalog_result = model_catalog_init(&catalog_config, &ctx->catalog_ctx);
+    if (catalog_result != MODEL_CATALOG_SUCCESS) {
+        fprintf(stderr, "Error: Failed to initialize model catalog: %s\n",
+                model_catalog_result_to_string(catalog_result));
+        model_registry_shutdown(ctx->registry_ctx);
         return ALLAMA_ERROR_REGISTRY;
     }
 
@@ -333,15 +377,7 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
     if (mf_result != MODELFILE_SUCCESS) {
         fprintf(stderr, "Error: Failed to initialize Modelfile parser: %s\n",
                 modelfile_result_to_string(mf_result));
-        model_registry_shutdown(ctx->registry_ctx);
-        return ALLAMA_ERROR_REGISTRY;
-    }
-
-    model_catalog_result_t catalog_result = model_catalog_init(&catalog_config, &ctx->catalog_ctx);
-    if (catalog_result != MODEL_CATALOG_SUCCESS) {
-        fprintf(stderr, "Error: Failed to initialize model catalog: %s\n",
-                model_catalog_result_to_string(catalog_result));
-        modelfile_parser_shutdown(ctx->modelfile_ctx);
+        model_catalog_shutdown(ctx->catalog_ctx);
         model_registry_shutdown(ctx->registry_ctx);
         return ALLAMA_ERROR_REGISTRY;
     }
