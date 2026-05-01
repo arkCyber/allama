@@ -443,6 +443,32 @@ model_catalog_result_t model_catalog_shutdown(model_catalog_context_t *ctx) {
 }
 
 /**
+ * @brief Simple progress bar display
+ */
+static void show_progress(size_t current, size_t total, const char *message) {
+    const int bar_width = 40;
+    float progress = (total > 0) ? (float)current / total : 0.0f;
+    int pos = (int)(bar_width * progress);
+
+    printf("\r[");
+    for (int i = 0; i < bar_width; i++) {
+        if (i < pos) {
+            printf("=");
+        } else if (i == pos) {
+            printf(">");
+        } else {
+            printf(" ");
+        }
+    }
+    printf("] %3.0f%% (%zu/%zu) %s", progress * 100.0f, current, total, message);
+    fflush(stdout);
+    
+    if (current == total) {
+        printf("\n");
+    }
+}
+
+/**
  * @brief Update catalog from remote source
  */
 /*@ 
@@ -470,6 +496,8 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
     try {
         json response_json = json::parse(response);
         
+        printf("Parsing catalog data...\n");
+        
         /* Clear existing catalog entries */
         const char *sql_delete = "DELETE FROM catalog";
         char *err_msg = NULL;
@@ -490,8 +518,17 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
 
         /* Hugging Face API returns an array of model objects */
         if (response_json.is_array()) {
+            size_t total_models = response_json.size();
+            size_t processed_models = 0;
+            size_t inserted_files = 0;
             std::unordered_set<std::string> inserted_name_tags;
+            
+            printf("Processing %zu models from Hugging Face...\n", total_models);
+            
             for (const auto& model : response_json) {
+                processed_models++;
+                show_progress(processed_models, total_models, "models processed");
+                
                 try {
                     /* Extract model information from JSON */
                     std::string model_id = model.value("id", model.value("modelId", ""));
@@ -568,6 +605,7 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
 
                         if (sqlite3_step(stmt) == SQLITE_DONE) {
                             inserted_name_tags.insert(dedup_key);
+                            inserted_files++;
                         }
                         sqlite3_finalize(stmt);
                     }
@@ -576,6 +614,13 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
                     continue;
                 }
             }
+            
+            /* Show final statistics */
+            printf("\nCatalog update complete:\n");
+            printf("  Total models processed: %zu\n", processed_models);
+            printf("  Total files inserted: %zu\n", inserted_files);
+        } else {
+            printf("Warning: Expected array of models, got different format\n");
         }
     } catch (const json::exception& e) {
         /* JSON parsing failed, fall back to sample data */
