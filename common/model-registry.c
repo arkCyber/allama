@@ -24,6 +24,7 @@
 #include <openssl/sha.h>
 #include <unistd.h>
 #include <errno.h>
+#include <ctype.h>
 
 /* ACSL annotations for formal verification */
 /*@ predicate valid_registry_context(struct model_registry_context *ctx) = 
@@ -212,6 +213,23 @@ static void digest_to_hex(const unsigned char *digest, char *hex_string) {
     hex_string[64] = '\0';
 }
 
+static void sanitize_model_name_for_filename(const char *input, char *output, size_t output_size) {
+    if (!input || !output || output_size == 0) {
+        return;
+    }
+
+    size_t j = 0;
+    for (size_t i = 0; input[i] != '\0' && j + 1 < output_size; ++i) {
+        unsigned char c = (unsigned char) input[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.') {
+            output[j++] = (char) c;
+        } else {
+            output[j++] = '-';
+        }
+    }
+    output[j] = '\0';
+}
+
 /**
  * @brief Initialize the model registry
  */
@@ -377,15 +395,9 @@ model_registry_result_t model_registry_pull(
     char download_url[512];
     char output_path[512];
     
-    /* Convert model name to Hugging Face format (e.g., "llama3:latest" -> "llama3-latest.gguf") */
+    /* Convert model name to safe filename format */
     char sanitized_name[256];
-    snprintf(sanitized_name, sizeof(sanitized_name), "%s", model_name);
-    
-    /* Replace ':' with '-' for filename */
-    char *colon = strchr(sanitized_name, ':');
-    if (colon) {
-        *colon = '-';
-    }
+    sanitize_model_name_for_filename(model_name, sanitized_name, sizeof(sanitized_name));
     
     /* Construct download URL using configured remote registry */
     snprintf(download_url, sizeof(download_url), 
@@ -529,15 +541,9 @@ model_registry_result_t model_registry_pull_with_url(
     /* Construct output path */
     char output_path[512];
     
-    /* Convert model name to filename format (e.g., "llama3:latest" -> "llama3-latest.gguf") */
+    /* Convert model name to safe filename format */
     char sanitized_name[256];
-    snprintf(sanitized_name, sizeof(sanitized_name), "%s", model_name);
-    
-    /* Replace ':' with '-' for filename */
-    char *colon = strchr(sanitized_name, ':');
-    if (colon) {
-        *colon = '-';
-    }
+    sanitize_model_name_for_filename(model_name, sanitized_name, sizeof(sanitized_name));
     
     /* Construct output path */
     snprintf(output_path, sizeof(output_path), "%s/%s.gguf", 

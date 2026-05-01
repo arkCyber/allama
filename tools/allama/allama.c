@@ -98,6 +98,9 @@ static allama_result_t cmd_run(allama_context_t *ctx, const char *model_name);
 static allama_result_t cmd_serve(allama_context_t *ctx);
 static allama_result_t cmd_mem(allama_context_t *ctx);
 static allama_result_t cmd_catalog(allama_context_t *ctx);
+static allama_result_t cmd_catalog_search(allama_context_t *ctx, const char *pattern);
+static allama_result_t cmd_catalog_update(allama_context_t *ctx);
+static allama_result_t cmd_help(const char *command_name);
 
 /**
  * @brief Print usage information
@@ -126,6 +129,7 @@ static void print_usage(const char *program_name) {
     printf("  mem               Display memory usage and model memory requirements\n");
     printf("  catalog           List available models from Hugging Face catalog\n");
     printf("  catalog-update    Update model catalog from Hugging Face\n");
+    printf("  help [command]    Show help for a specific command\n");
     printf("\n");
     printf("Options:\n");
     printf("  -v, --verbose     Enable verbose output\n");
@@ -134,6 +138,7 @@ static void print_usage(const char *program_name) {
     printf("\n");
     printf("Examples:\n");
     printf("  %s pull llama3:latest\n", program_name);
+    printf("  %s pull llama3:auto\n", program_name);
     printf("  %s list\n", program_name);
     printf("  %s ps\n", program_name);
     printf("  %s stop llama3:latest\n", program_name);
@@ -143,6 +148,65 @@ static void print_usage(const char *program_name) {
     printf("  %s create Modelfile\n", program_name);
     printf("  %s run llama3:latest\n", program_name);
     printf("  %s serve\n", program_name);
+}
+
+/**
+ * @brief Load configuration from file
+ */
+static void load_config(const char *config_path, model_registry_config_t *registry_config, model_catalog_config_t *catalog_config) {
+    FILE *file = fopen(config_path, "r");
+    if (!file) {
+        return;  /* Use defaults if config file doesn't exist */
+    }
+
+    char line[512];
+    while (fgets(line, sizeof(line), file)) {
+        /* Remove newline */
+        line[strcspn(line, "\n")] = 0;
+
+        /* Skip comments and empty lines */
+        if (line[0] == '#' || line[0] == '\0') {
+            continue;
+        }
+
+        /* Parse key=value pairs */
+        char *key = strtok(line, "=");
+        char *value = strtok(NULL, "=");
+        if (!key || !value) {
+            continue;
+        }
+
+        /* Trim whitespace */
+        while (*key == ' ') key++;
+        while (*value == ' ') value++;
+        char *key_end = key + strlen(key) - 1;
+        while (key_end > key && *key_end == ' ') *key_end-- = 0;
+        char *value_end = value + strlen(value) - 1;
+        while (value_end > value && *value_end == ' ') *value_end-- = 0;
+
+        /* Apply configuration */
+        if (strcmp(key, "registry_path") == 0) {
+            registry_config->registry_path = strdup(value);
+        } else if (strcmp(key, "models_path") == 0) {
+            registry_config->models_path = strdup(value);
+        } else if (strcmp(key, "max_models") == 0) {
+            registry_config->max_models = atoi(value);
+        } else if (strcmp(key, "catalog_path") == 0) {
+            catalog_config->catalog_path = strdup(value);
+        } else if (strcmp(key, "cache_path") == 0) {
+            catalog_config->cache_path = strdup(value);
+        } else if (strcmp(key, "remote_url") == 0) {
+            catalog_config->remote_url = strdup(value);
+        } else if (strcmp(key, "max_entries") == 0) {
+            catalog_config->max_entries = atoi(value);
+        } else if (strcmp(key, "cache_ttl") == 0) {
+            catalog_config->cache_ttl = atoi(value);
+        } else if (strcmp(key, "enable_auto_update") == 0) {
+            catalog_config->enable_auto_update = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
+        }
+    }
+
+    fclose(file);
 }
 
 /**
@@ -164,6 +228,15 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
     /* Initialize audit log */
     audit_log_init("/tmp/allama_audit.log", true, 10 * 1024 * 1024);
 
+    /* Load configuration from file */
+    const char *config_file = getenv("HOME");
+    char config_path[512];
+    if (config_file) {
+        snprintf(config_path, sizeof(config_path), "%s/.allama/config", config_file);
+    } else {
+        strcpy(config_path, "~/.allama/config");
+    }
+
     /* Initialize model registry */
     model_registry_config_t config = {
         .registry_path = NULL,  /* Use default */
@@ -173,6 +246,20 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
         .enable_audit = true,
         .enable_validation = true
     };
+
+    /* Initialize model catalog */
+    model_catalog_config_t catalog_config = {
+        .catalog_path = NULL,      /* Use default */
+        .cache_path = NULL,        /* Use default */
+        .remote_url = NULL,        /* Use default Hugging Face */
+        .max_entries = 10000,
+        .cache_ttl = 3600,         /* 1 hour */
+        .enable_auto_update = true,
+        .enable_audit = true
+    };
+
+    /* Load configuration from file */
+    load_config(config_path, &config, &catalog_config);
 
     model_registry_result_t result = model_registry_init(&config, &ctx->registry_ctx);
     if (result != MODEL_REGISTRY_SUCCESS) {
@@ -189,17 +276,6 @@ static allama_result_t allama_init(allama_context_t *ctx, bool verbose) {
         model_registry_shutdown(ctx->registry_ctx);
         return ALLAMA_ERROR_REGISTRY;
     }
-
-    /* Initialize model catalog */
-    model_catalog_config_t catalog_config = {
-        .catalog_path = NULL,      /* Use default */
-        .cache_path = NULL,        /* Use default */
-        .remote_url = NULL,        /* Use default Hugging Face */
-        .max_entries = 10000,
-        .cache_ttl = 3600,         /* 1 hour */
-        .enable_auto_update = true,
-        .enable_audit = true
-    };
 
     model_catalog_result_t catalog_result = model_catalog_init(&catalog_config, &ctx->catalog_ctx);
     if (catalog_result != MODEL_CATALOG_SUCCESS) {
@@ -410,8 +486,68 @@ static bool confirm_action(const char *action, const char *target) {
 static void progress_callback(const char *model, float progress, void *user_data) {
     allama_context_t *actx = (allama_context_t *)user_data;
     if (actx->verbose) {
-        printf("Downloading %s: %.1f%%\n", model, progress * 100);
+        const int bar_width = 30;
+        int filled = (int)(progress * bar_width);
+        if (filled < 0) {
+            filled = 0;
+        }
+        if (filled > bar_width) {
+            filled = bar_width;
+        }
+
+        time_t now = time(NULL);
+        struct tm *tm_info = localtime(&now);
+        char time_buf[16] = {0};
+        if (tm_info) {
+            strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm_info);
+        } else {
+            snprintf(time_buf, sizeof(time_buf), "unknown");
+        }
+
+        printf("\r[%s] Downloading %s [", time_buf, model);
+        for (int i = 0; i < bar_width; i++) {
+            putchar(i < filled ? '=' : ' ');
+        }
+        printf("] %6.2f%%", (double) progress * 100.0);
+        fflush(stdout);
+        if (progress >= 1.0f) {
+            printf("\n");
+        }
     }
+}
+
+static int rank_catalog_tag(const char *tag) {
+    if (!tag) return 100;
+    if (strcmp(tag, "Q4_K_M") == 0) return 1;
+    if (strcmp(tag, "Q5_K_M") == 0) return 2;
+    if (strcmp(tag, "Q4_K_S") == 0) return 3;
+    if (strcmp(tag, "Q8_0") == 0) return 4;
+    if (strcmp(tag, "F16") == 0) return 5;
+    if (strcmp(tag, "BF16") == 0) return 6;
+    if (strcmp(tag, "F32") == 0) return 7;
+    return 20;
+}
+
+static int cmp_catalog_entries_by_name_then_rank(const void *a, const void *b) {
+    const model_catalog_entry_t *ea = (const model_catalog_entry_t *)a;
+    const model_catalog_entry_t *eb = (const model_catalog_entry_t *)b;
+
+    const char *na = ea->name ? ea->name : "";
+    const char *nb = eb->name ? eb->name : "";
+    int name_cmp = strcmp(na, nb);
+    if (name_cmp != 0) {
+        return name_cmp;
+    }
+
+    int ra = rank_catalog_tag(ea->tag);
+    int rb = rank_catalog_tag(eb->tag);
+    if (ra != rb) {
+        return ra - rb;
+    }
+
+    const char *ta = ea->tag ? ea->tag : "";
+    const char *tb = eb->tag ? eb->tag : "";
+    return strcmp(ta, tb);
 }
 
 /**
@@ -439,10 +575,19 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
     snprintf(model_name_copy, sizeof(model_name_copy), "%s", model_name);
     
     char *colon = strchr(model_name_copy, ':');
+    bool has_explicit_tag = (colon != NULL);
     char *tag = "latest";
     if (colon) {
         *colon = '\0';
         tag = colon + 1;
+    }
+
+    bool is_auto_mode = !has_explicit_tag || strcmp(tag, "auto") == 0;
+    if (is_auto_mode) {
+        if (!has_explicit_tag) {
+            printf("No tag provided, using auto selection\n");
+        }
+        tag = "latest";
     }
     
     /* Try to get download URL from catalog */
@@ -452,9 +597,68 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         tag,
         &catalog_entry
     );
-    
+
+    if (catalog_result != MODEL_CATALOG_SUCCESS && strcmp(tag, "latest") == 0) {
+        model_catalog_entry_t *entries = NULL;
+        size_t entry_count = 0;
+        model_catalog_result_t search_result = model_catalog_search(
+            ctx->catalog_ctx,
+            model_name_copy,
+            &entries,
+            &entry_count
+        );
+
+        if (search_result == MODEL_CATALOG_SUCCESS && entries && entry_count > 0) {
+            int best_idx = -1;
+            int best_rank = 1000;
+            for (size_t i = 0; i < entry_count; ++i) {
+                if (!entries[i].name || strcmp(entries[i].name, model_name_copy) != 0) {
+                    continue;
+                }
+                int rank = rank_catalog_tag(entries[i].tag);
+                if (best_idx == -1 || rank < best_rank) {
+                    best_idx = (int) i;
+                    best_rank = rank;
+                }
+            }
+
+            if (best_idx >= 0) {
+                model_catalog_entry_t *src = &entries[best_idx];
+                catalog_entry = calloc(1, sizeof(model_catalog_entry_t));
+                if (catalog_entry) {
+                    catalog_entry->name = src->name ? strdup(src->name) : NULL;
+                    catalog_entry->tag = src->tag ? strdup(src->tag) : NULL;
+                    catalog_entry->digest = src->digest ? strdup(src->digest) : NULL;
+                    catalog_entry->size = src->size;
+                    catalog_entry->parameters = src->parameters;
+                    catalog_entry->quantization = src->quantization ? strdup(src->quantization) : NULL;
+                    catalog_entry->architecture = src->architecture ? strdup(src->architecture) : NULL;
+                    catalog_entry->license = src->license ? strdup(src->license) : NULL;
+                    catalog_entry->author = src->author ? strdup(src->author) : NULL;
+                    catalog_entry->description = src->description ? strdup(src->description) : NULL;
+                    catalog_entry->download_url = src->download_url ? strdup(src->download_url) : NULL;
+                    catalog_entry->last_updated = src->last_updated;
+                    catalog_entry->is_available = src->is_available;
+                }
+            }
+        }
+
+        if (entries) {
+            model_catalog_entry_free_array(entries, entry_count);
+        }
+    }
+
     if (catalog_result == MODEL_CATALOG_SUCCESS && catalog_entry && catalog_entry->download_url) {
         download_url = strdup(catalog_entry->download_url);
+        if (catalog_entry->tag) {
+            printf("Selected catalog variant: %s:%s\n", model_name_copy, catalog_entry->tag);
+        }
+        printf("Using catalog download URL: %s\n", download_url);
+    } else if (catalog_entry && catalog_entry->download_url) {
+        download_url = strdup(catalog_entry->download_url);
+        if (catalog_entry->tag) {
+            printf("Auto-selected variant for %s: %s\n", model_name_copy, catalog_entry->tag);
+        }
         printf("Using catalog download URL: %s\n", download_url);
     }
     
@@ -477,7 +681,12 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         );
 
         if (result == MODEL_REGISTRY_SUCCESS) {
-            printf("✅ Successfully pulled model: %s\n", model_name);
+            if (is_auto_mode && catalog_entry && catalog_entry->tag) {
+                printf("✅ Successfully pulled model: %s:%s (requested %s:auto)\n",
+                       model_name_copy, catalog_entry->tag, model_name_copy);
+            } else {
+                printf("✅ Successfully pulled model: %s\n", model_name);
+            }
             if (download_url) {
                 free(download_url);
             }
@@ -1493,26 +1702,216 @@ static allama_result_t cmd_catalog(allama_context_t *ctx) {
         printf("No models found in catalog\n");
         printf("💡 Tip: Use 'allama catalog-update' to refresh the catalog\n");
     } else {
-        printf("%zu model(s) available:\n\n", count);
+        qsort(entries, count, sizeof(model_catalog_entry_t), cmp_catalog_entries_by_name_then_rank);
+        printf("%zu catalog entry(s) available:\n\n", count);
+
+        const char *current_name = NULL;
+        for (size_t i = 0; i < count; i++) {
+            model_catalog_entry_t *entry = &entries[i];
+            if (!entry->name) {
+                continue;
+            }
+
+            if (!current_name || strcmp(current_name, entry->name) != 0) {
+                current_name = entry->name;
+                printf("MODEL: %s\n", current_name);
+                printf("  pull(auto): allama pull %s:auto\n", current_name);
+                if (entry->description) {
+                    printf("  desc: %s\n", entry->description);
+                }
+                if (entry->architecture) {
+                    printf("  arch: %s\n", entry->architecture);
+                }
+                printf("  variants:\n");
+            }
+
+            printf("    - %-12s size=%7.2f GB  pull=allama pull %s:%s\n",
+                   entry->tag ? entry->tag : "latest",
+                   (double) entry->size / (1024.0 * 1024.0 * 1024.0),
+                   entry->name,
+                   entry->tag ? entry->tag : "latest");
+        }
+        printf("\n");
+    }
+
+    if (entries) {
+        model_catalog_entry_free_array(entries, count);
+    }
+
+    return ALLAMA_SUCCESS;
+}
+
+/**
+ * @brief Catalog search command handler - search available models from Hugging Face catalog
+ */
+static allama_result_t cmd_catalog_search(allama_context_t *ctx, const char *pattern) {
+    if (!ctx || !ctx->initialized || !pattern) {
+        print_allama_error("Catalog Search", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    model_catalog_entry_t *entries = NULL;
+    size_t count = 0;
+    model_catalog_result_t result = model_catalog_search(ctx->catalog_ctx, pattern, &entries, &count);
+    if (result != MODEL_CATALOG_SUCCESS) {
+        print_catalog_error_with_suggestion("Catalog Search", result);
+        return ALLAMA_ERROR_REGISTRY;
+    }
+
+    if (count == 0) {
+        printf("No models found in catalog matching '%s'\n", pattern);
+    } else {
+        printf("%zu model(s) found in catalog matching '%s':\n\n", count, pattern);
         for (size_t i = 0; i < count; i++) {
             model_catalog_entry_t *entry = &entries[i];
             printf("NAME: %s:%s\n", entry->name, entry->tag);
-            printf("SIZE: %.2f GB\n", (double)entry->size / (1024.0 * 1024.0 * 1024.0));
-            printf("PARAMETERS: %u\n", entry->parameters);
+            printf("SIZE: %.2f GB\n", (double) entry->size / (1024.0 * 1024.0 * 1024.0));
             printf("QUANTIZATION: %s\n", entry->quantization ? entry->quantization : "N/A");
-            printf("ARCHITECTURE: %s\n", entry->architecture ? entry->architecture : "N/A");
-            printf("LICENSE: %s\n", entry->license ? entry->license : "N/A");
-            printf("AUTHOR: %s\n", entry->author ? entry->author : "N/A");
-            if (entry->description) {
-                printf("DESCRIPTION: %s\n", entry->description);
-            }
-            printf("DOWNLOAD: allama pull %s:%s\n", entry->name, entry->tag);
-            printf("\n");
+            printf("DOWNLOAD: allama pull %s:%s\n\n", entry->name, entry->tag);
         }
     }
 
     if (entries) {
         model_catalog_entry_free_array(entries, count);
+    }
+
+    return ALLAMA_SUCCESS;
+}
+
+/**
+ * @brief Help command handler for specific command
+ */
+static allama_result_t cmd_help(const char *command_name) {
+    if (!command_name) {
+        print_usage("allama");
+        return ALLAMA_SUCCESS;
+    }
+
+    printf("Help for '%s':\n\n", command_name);
+
+    if (strcmp(command_name, "pull") == 0) {
+        printf("Usage: allama pull <model>\n");
+        printf("\n");
+        printf("Pull a model from the remote registry.\n");
+        printf("The model name should be in the format 'name:tag' (e.g., 'llama3:latest').\n");
+        printf("If no tag is specified, 'latest' is assumed.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama pull llama3:latest\n");
+        printf("  allama pull llama2:7b\n");
+    } else if (strcmp(command_name, "list") == 0) {
+        printf("Usage: allama list\n");
+        printf("\n");
+        printf("List all local models in the registry.\n");
+        printf("Shows model name, tag, size, and other metadata.\n");
+    } else if (strcmp(command_name, "ps") == 0) {
+        printf("Usage: allama ps\n");
+        printf("\n");
+        printf("List all running models.\n");
+        printf("Shows model name, tag, PID, and memory usage.\n");
+    } else if (strcmp(command_name, "stop") == 0) {
+        printf("Usage: allama stop <model>\n");
+        printf("\n");
+        printf("Stop a running model.\n");
+        printf("The model name should be in the format 'name:tag'.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama stop llama3:latest\n");
+    } else if (strcmp(command_name, "show") == 0) {
+        printf("Usage: allama show <model>\n");
+        printf("\n");
+        printf("Show detailed information about a model.\n");
+        printf("Displays model metadata, size, parameters, and other details.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama show llama3:latest\n");
+    } else if (strcmp(command_name, "rm") == 0) {
+        printf("Usage: allama rm <model>\n");
+        printf("\n");
+        printf("Remove a model from the registry and delete its files.\n");
+        printf("This operation requires confirmation.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama rm llama3:latest\n");
+    } else if (strcmp(command_name, "cp") == 0) {
+        printf("Usage: allama cp <src> <dst>\n");
+        printf("\n");
+        printf("Copy a model to a new name.\n");
+        printf("Creates a new registry entry without duplicating the model file.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama cp llama3:latest llama3:custom\n");
+    } else if (strcmp(command_name, "add") == 0) {
+        printf("Usage: allama add <name> <path>\n");
+        printf("\n");
+        printf("Add a local model file to the registry.\n");
+        printf("The model file must be in GGUF format.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama add mymodel /path/to/model.gguf\n");
+    } else if (strcmp(command_name, "create") == 0) {
+        printf("Usage: allama create <modelfile>\n");
+        printf("\n");
+        printf("Create a model from a Modelfile.\n");
+        printf("The Modelfile specifies base model and configuration.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama create Modelfile\n");
+    } else if (strcmp(command_name, "search") == 0) {
+        printf("Usage: allama search <pattern>\n");
+        printf("\n");
+        printf("Search models by name pattern.\n");
+        printf("Supports simple pattern matching.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama search llama\n");
+        printf("  allama search 3\n");
+    } else if (strcmp(command_name, "stats") == 0) {
+        printf("Usage: allama stats\n");
+        printf("\n");
+        printf("Show registry statistics.\n");
+        printf("Displays total models, storage usage, and paths.\n");
+    } else if (strcmp(command_name, "validate") == 0) {
+        printf("Usage: allama validate <model>\n");
+        printf("\n");
+        printf("Validate model file integrity.\n");
+        printf("Checks SHA256 hash and file consistency.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama validate llama3:latest\n");
+    } else if (strcmp(command_name, "run") == 0) {
+        printf("Usage: allama run <model>\n");
+        printf("\n");
+        printf("Run a model for inference.\n");
+        printf("Starts an interactive session with the model.\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama run llama3:latest\n");
+    } else if (strcmp(command_name, "serve") == 0) {
+        printf("Usage: allama serve\n");
+        printf("\n");
+        printf("Start the llama-server with model registry integration.\n");
+        printf("Provides HTTP API for model inference.\n");
+    } else if (strcmp(command_name, "mem") == 0) {
+        printf("Usage: allama mem\n");
+        printf("\n");
+        printf("Display memory usage and model memory requirements.\n");
+        printf("Shows system memory and estimated model memory needs.\n");
+    } else if (strcmp(command_name, "catalog") == 0) {
+        printf("Usage: allama catalog\n");
+        printf("\n");
+        printf("List available models from Hugging Face catalog.\n");
+        printf("Shows model metadata and download instructions.\n");
+    } else if (strcmp(command_name, "catalog-update") == 0) {
+        printf("Usage: allama catalog-update\n");
+        printf("\n");
+        printf("Update model catalog from Hugging Face.\n");
+        printf("Fetches latest model information from the API.\n");
+    } else {
+        printf("Unknown command: %s\n", command_name);
+        printf("\n");
+        printf("Use 'allama --help' to see all available commands.\n");
+        return ALLAMA_ERROR_INVALID_ARGS;
     }
 
     return ALLAMA_SUCCESS;
@@ -1557,6 +1956,17 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* Check for help command first (doesn't need context initialization) */
+    const char *command = argv[optind];
+    if (command && strcmp(command, "help") == 0) {
+        if (optind + 1 >= argc) {
+            print_usage(argv[0]);
+            return ALLAMA_SUCCESS;
+        } else {
+            return cmd_help(argv[optind + 1]);
+        }
+    }
+
     /* Initialize allama */
     allama_result_t result = allama_init(&ctx, verbose);
     if (result != ALLAMA_SUCCESS) {
@@ -1564,7 +1974,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* Get command */
-    const char *command = argv[optind];
     if (!command) {
         print_usage(argv[0]);
         allama_shutdown(&ctx);

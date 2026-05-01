@@ -1,0 +1,15 @@
+# allama configuration file
+# Place this file at ~/.allama/config to customize allama behavior
+
+# Model Registry Configuration
+#registry_path=~/.allama/registry.db
+#models_path=~/.allama/models
+#max_models=1000
+
+# Model Catalog Configuration
+#catalog_path=~/.allama/catalog.db
+#cache_path=~/.allama/cache
+#remote_url=https://huggingface.co
+#max_entries=10000
+#cache_ttl=3600
+#enable_auto_update=true

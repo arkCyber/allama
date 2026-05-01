@@ -28,6 +28,9 @@
 #include <vector>
 #include <string>
 #include <cctype>
+#include <algorithm>
+#include <unordered_set>
+#include <regex>
 
 using json = nlohmann::json;
 
@@ -68,7 +71,7 @@ static const char *SQL_SCHEMA =
     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
     "name TEXT NOT NULL,"
     "tag TEXT NOT NULL,"
-    "name_tag UNIQUE,"
+    "UNIQUE(name, tag),"
     "digest TEXT,"
     "size INTEGER,"
     "parameters INTEGER,"
@@ -219,6 +222,89 @@ static model_catalog_result_t fetch_remote_catalog(const char *url, char **respo
 
     curl_easy_cleanup(curl);
     return MODEL_CATALOG_SUCCESS;
+}
+
+static std::string normalize_model_name(std::string model_id) {
+    for (char & c : model_id) {
+        if (c == ' ') {
+            c = '-';
+        } else {
+            c = (char) std::tolower((unsigned char) c);
+        }
+    }
+    return model_id;
+}
+
+static bool is_gguf_filename(const std::string & filename) {
+    if (filename.size() < 5) {
+        return false;
+    }
+    std::string lowered(filename.size(), '\0');
+    std::transform(filename.begin(), filename.end(), lowered.begin(), [](unsigned char c) {
+        return (char) std::tolower(c);
+    });
+    return lowered.size() >= 5 && lowered.substr(lowered.size() - 5) == ".gguf";
+}
+
+static std::string detect_quantization_tag(const std::string & filename) {
+    static const std::regex quant_re("(Q[0-9]+(?:_[A-Z0-9]+)*|IQ[0-9]+(?:_[A-Z0-9]+)*|F16|F32|BF16|FP16|FP32|MXFP[0-9]+)", std::regex::icase);
+
+    std::smatch m;
+    if (std::regex_search(filename, m, quant_re) && !m.str().empty()) {
+        std::string q = m.str();
+        std::transform(q.begin(), q.end(), q.begin(), [](unsigned char c) {
+            return (char) std::toupper(c);
+        });
+        return q;
+    }
+
+    std::string tag = filename;
+    const size_t slash = tag.find_last_of('/');
+    if (slash != std::string::npos) {
+        tag = tag.substr(slash + 1);
+    }
+    if (tag.size() > 5 && tag.substr(tag.size() - 5) == ".gguf") {
+        tag.resize(tag.size() - 5);
+    }
+    if (tag.empty()) {
+        return "latest";
+    }
+    return tag;
+}
+
+static std::vector<json> fetch_model_gguf_entries(const std::string & model_id) {
+    std::vector<json> gguf_entries;
+    std::string endpoint = "https://huggingface.co/api/models/" + model_id;
+
+    char *details_response = NULL;
+    model_catalog_result_t details_result = fetch_remote_catalog(endpoint.c_str(), &details_response);
+    if (details_result != MODEL_CATALOG_SUCCESS || details_response == NULL) {
+        if (details_response) {
+            free(details_response);
+        }
+        return gguf_entries;
+    }
+
+    try {
+        json details_json = json::parse(details_response);
+        if (details_json.contains("siblings") && details_json["siblings"].is_array()) {
+            for (const auto & sibling : details_json["siblings"]) {
+                if (!sibling.is_object()) {
+                    continue;
+                }
+                std::string rfilename = sibling.value("rfilename", "");
+                if (!is_gguf_filename(rfilename)) {
+                    continue;
+                }
+                gguf_entries.push_back(sibling);
+            }
+        }
+    } catch (...) {
+        // no-op: fallback handled by caller
+    }
+
+    free(details_response);
+    return gguf_entries;
 }
 
 /**
@@ -397,8 +483,14 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
             return MODEL_CATALOG_ERROR_DATABASE;
         }
         
+        const char *sql_insert = "INSERT INTO catalog (name, tag, digest, size, parameters, "
+                                 "quantization, architecture, license, author, description, "
+                                 "download_url, last_updated, is_available) VALUES "
+                                 "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+
         /* Hugging Face API returns an array of model objects */
         if (response_json.is_array()) {
+            std::unordered_set<std::string> inserted_name_tags;
             for (const auto& model : response_json) {
                 try {
                     /* Extract model information from JSON */
@@ -423,46 +515,60 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
                     }
                     uint64_t size = model.value("size", 0);
                     uint64_t parameters = model.value("parameters", 0);
-                    std::string quantization = model.value("quantization", "");
-                    std::string digest = model.value("sha256", "");
                     uint64_t last_updated = (uint64_t) time(NULL);
-                    
-                    /* Construct download URL */
-                    std::string download_url = "https://huggingface.co/" + model_id + "/resolve/main/model.gguf";
-                    
-                    /* Parse model name from model_id (e.g., "meta-llama/Meta-Llama-3-8B" -> "llama3") */
-                    std::string model_name = model_id;
-                    /* Convert to lowercase and remove spaces */
-                    for (char& c : model_name) {
-                        if (c == ' ') {
-                            c = '-';
-                        } else {
-                            c = (char) std::tolower((unsigned char) c);
-                        }
+
+                    std::string model_name = normalize_model_name(model_id);
+                    std::vector<json> gguf_entries = fetch_model_gguf_entries(model_id);
+                    if (gguf_entries.empty()) {
+                        // legacy fallback for repos without sibling info
+                        gguf_entries.push_back(json{
+                            {"rfilename", "model.gguf"},
+                            {"size", size}
+                        });
                     }
-                    
-                    /* Insert into database */
-                    const char *sql_insert = "INSERT INTO catalog (name, tag, digest, size, parameters, "
-                                           "quantization, architecture, license, author, description, "
-                                           "download_url, last_updated, is_available) VALUES "
-                                           "(?, 'latest', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
-                    
-                    sqlite3_stmt *stmt;
-                    rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
-                    if (rc == SQLITE_OK) {
+
+                    for (const auto & file_entry : gguf_entries) {
+                        std::string rfilename = file_entry.value("rfilename", "");
+                        if (rfilename.empty()) {
+                            continue;
+                        }
+
+                        std::string quantization = detect_quantization_tag(rfilename);
+                        std::string digest = file_entry.value("sha256", "");
+                        if (digest.empty() && file_entry.contains("lfs") && file_entry["lfs"].is_object()) {
+                            digest = file_entry["lfs"].value("sha256", "");
+                        }
+                        uint64_t file_size = file_entry.value("size", size);
+                        std::string tag = quantization.empty() ? "latest" : quantization;
+                        std::string dedup_key = model_name + ":" + tag;
+                        if (inserted_name_tags.find(dedup_key) != inserted_name_tags.end()) {
+                            continue;
+                        }
+
+                        std::string download_url = "https://huggingface.co/" + model_id + "/resolve/main/" + rfilename + "?download=true";
+
+                        sqlite3_stmt *stmt;
+                        rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
+                        if (rc != SQLITE_OK) {
+                            continue;
+                        }
+
                         sqlite3_bind_text(stmt, 1, model_name.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 2, digest.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_int64(stmt, 3, (sqlite3_int64)size);
-                        sqlite3_bind_int64(stmt, 4, (sqlite3_int64)parameters);
-                        sqlite3_bind_text(stmt, 5, quantization.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 6, architecture.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 7, license.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 8, author.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 9, description.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(stmt, 10, download_url.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_int64(stmt, 11, (sqlite3_int64)last_updated);
-                        
-                        sqlite3_step(stmt);
+                        sqlite3_bind_text(stmt, 2, tag.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 3, digest.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int64(stmt, 4, (sqlite3_int64) file_size);
+                        sqlite3_bind_int64(stmt, 5, (sqlite3_int64) parameters);
+                        sqlite3_bind_text(stmt, 6, quantization.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 7, architecture.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 8, license.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 9, author.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 10, description.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 11, download_url.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int64(stmt, 12, (sqlite3_int64) last_updated);
+
+                        if (sqlite3_step(stmt) == SQLITE_DONE) {
+                            inserted_name_tags.insert(dedup_key);
+                        }
                         sqlite3_finalize(stmt);
                     }
                 } catch (const json::exception& e) {

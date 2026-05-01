@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
+#include <limits.h>
 
 /**
  * @brief Download context for tracking progress
@@ -29,6 +30,7 @@ typedef struct {
     FILE *file;
     size_t total_size;
     size_t downloaded;
+    size_t resume_from;
     download_progress_callback_t callback;
     void *user_data;
     const char *url;
@@ -66,10 +68,51 @@ static size_t header_callback(char *buffer, size_t size, size_t nitems, void *us
     size_t total = size * nitems;
     
     if (strncasecmp(buffer, "Content-Length:", 15) == 0) {
-        ctx->total_size = strtoull(buffer + 15, NULL, 10);
+        size_t remaining = strtoull(buffer + 15, NULL, 10);
+        ctx->total_size = ctx->resume_from + remaining;
     }
     
     return total;
+}
+
+static bool get_file_size(const char *path, size_t *size_out) {
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return false;
+    }
+    if (size_out) {
+        *size_out = (size_t) st.st_size;
+    }
+    return true;
+}
+
+static size_t get_remote_content_length(const char *url) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return 0;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    curl_off_t content_length = -1;
+    if (curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &content_length) != CURLE_OK || content_length <= 0) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    curl_easy_cleanup(curl);
+    return (size_t) content_length;
 }
 
 /**
@@ -100,8 +143,6 @@ static bool compute_file_sha256(const char *path, uint8_t *digest) {
  * @brief Convert SHA256 digest to hex string
  */
 static void sha256_to_hex(const uint8_t *digest, char *hex_string) {
-    static const char hex_chars[] = "0123456789abcdef";
-    
     for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         snprintf(hex_string + (i * 2), 3, "%02x", digest[i]);
     }
@@ -151,22 +192,69 @@ download_result_t http_download_file_verify(
     if (!url || !output_path) {
         return DOWNLOAD_ERROR_INVALID_URL;
     }
-    
+
+    char part_path[PATH_MAX];
+    if (snprintf(part_path, sizeof(part_path), "%s.part", output_path) >= (int) sizeof(part_path)) {
+        return DOWNLOAD_ERROR_IO;
+    }
+
+    size_t output_size = 0;
+    bool output_exists = get_file_size(output_path, &output_size);
+    if (output_exists) {
+        if (expected_sha256 && verify_sha256(output_path, expected_sha256)) {
+            if (progress_callback) {
+                progress_callback(url, 1.0f, user_data);
+            }
+            return DOWNLOAD_SUCCESS;
+        }
+
+        size_t remote_size = get_remote_content_length(url);
+        if (remote_size > 0 && output_size == remote_size) {
+            if (progress_callback) {
+                progress_callback(url, 1.0f, user_data);
+            }
+            return DOWNLOAD_SUCCESS;
+        }
+
+        /* Convert existing output into resumable part file if present */
+        unlink(part_path);
+        if (rename(output_path, part_path) != 0) {
+            return DOWNLOAD_ERROR_IO;
+        }
+    }
+
+    size_t resume_from = 0;
+    if (get_file_size(part_path, &resume_from)) {
+        size_t remote_size = get_remote_content_length(url);
+        if (remote_size > 0 && resume_from >= remote_size) {
+            if (rename(part_path, output_path) != 0) {
+                return DOWNLOAD_ERROR_IO;
+            }
+            if (progress_callback) {
+                progress_callback(url, 1.0f, user_data);
+            }
+            return DOWNLOAD_SUCCESS;
+        }
+    } else {
+        resume_from = 0;
+    }
+
     CURL *curl = curl_easy_init();
     if (!curl) {
         return DOWNLOAD_ERROR_NETWORK;
     }
-    
-    FILE *file = fopen(output_path, "wb");
+
+    FILE *file = fopen(part_path, resume_from > 0 ? "ab" : "wb");
     if (!file) {
         curl_easy_cleanup(curl);
         return DOWNLOAD_ERROR_IO;
     }
-    
+
     download_context_t ctx = {
         .file = file,
         .total_size = 0,
-        .downloaded = 0,
+        .downloaded = resume_from,
+        .resume_from = resume_from,
         .callback = progress_callback,
         .user_data = user_data,
         .url = url,
@@ -185,6 +273,11 @@ download_result_t http_download_file_verify(
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+    if (resume_from > 0) {
+        curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) resume_from);
+    }
     
     if (timeout_seconds > 0) {
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_seconds);
@@ -196,8 +289,6 @@ download_result_t http_download_file_verify(
     curl_easy_cleanup(curl);
     
     if (res != CURLE_OK) {
-        unlink(output_path);
-        
         if (res == CURLE_OPERATION_TIMEDOUT) {
             return DOWNLOAD_ERROR_TIMEOUT;
         } else if (res == CURLE_COULDNT_RESOLVE_HOST || res == CURLE_COULDNT_CONNECT) {
@@ -205,6 +296,10 @@ download_result_t http_download_file_verify(
         } else {
             return DOWNLOAD_ERROR_IO;
         }
+    }
+
+    if (rename(part_path, output_path) != 0) {
+        return DOWNLOAD_ERROR_IO;
     }
     
     if (ctx.verify && expected_sha256) {
