@@ -405,20 +405,56 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
 
     printf("Pulling model: %s\n", model_name);
 
+    /* Check if model exists in catalog for download URL */
+    char *download_url = NULL;
+    model_catalog_entry_t *catalog_entry = NULL;
+    
+    /* Parse model name and tag */
+    char model_name_copy[256];
+    snprintf(model_name_copy, sizeof(model_name_copy), "%s", model_name);
+    
+    char *colon = strchr(model_name_copy, ':');
+    char *tag = "latest";
+    if (colon) {
+        *colon = '\0';
+        tag = colon + 1;
+    }
+    
+    /* Try to get download URL from catalog */
+    model_catalog_result_t catalog_result = model_catalog_get(
+        ctx->catalog_ctx,
+        model_name_copy,
+        tag,
+        &catalog_entry
+    );
+    
+    if (catalog_result == MODEL_CATALOG_SUCCESS && catalog_entry && catalog_entry->download_url) {
+        download_url = strdup(catalog_entry->download_url);
+        printf("Using catalog download URL: %s\n", download_url);
+    }
+    
+    if (catalog_entry) {
+        model_catalog_entry_free(catalog_entry);
+    }
+
     /* Retry mechanism for network operations */
     int max_retries = 3;
     model_registry_result_t result = MODEL_REGISTRY_ERROR_NETWORK;
     
     for (int attempt = 1; attempt <= max_retries; attempt++) {
-        result = model_registry_pull(
+        result = model_registry_pull_with_url(
             ctx->registry_ctx,
             model_name,
+            download_url,
             progress_callback,
             ctx
         );
 
         if (result == MODEL_REGISTRY_SUCCESS) {
             printf("✅ Successfully pulled model: %s\n", model_name);
+            if (download_url) {
+                free(download_url);
+            }
             return ALLAMA_SUCCESS;
         }
 
@@ -432,6 +468,9 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         }
     }
 
+    if (download_url) {
+        free(download_url);
+    }
     print_error_with_suggestion("Pull", result);
     return ALLAMA_ERROR_REGISTRY;
 }

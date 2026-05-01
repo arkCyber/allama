@@ -491,6 +491,165 @@ model_registry_result_t model_registry_pull(
 }
 
 /**
+ * @brief Pull a model from remote registry with custom download URL
+ */
+model_registry_result_t model_registry_pull_with_url(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *download_url,
+    void (*progress_callback)(const char *model, float progress, void *user_data),
+    void *user_data
+) {
+    if (!ctx || !ctx->initialized || !model_name) {
+        return MODEL_REGISTRY_ERROR_INVALID_PATH;
+    }
+
+    pthread_mutex_lock(&ctx->mutex);
+
+    /* Check if model already exists */
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT path FROM models WHERE name = ? LIMIT 1;";
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, model_name, -1, SQLITE_STATIC);
+        rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        
+        if (rc == SQLITE_ROW) {
+            pthread_mutex_unlock(&ctx->mutex);
+            if (ctx->audit_enabled) {
+                audit_log_auth_failure("model_registry_pull", model_name, "model already exists");
+            }
+            return MODEL_REGISTRY_ERROR_EXISTS;
+        }
+    }
+
+    pthread_mutex_unlock(&ctx->mutex);
+
+    /* Construct output path */
+    char output_path[512];
+    
+    /* Convert model name to filename format (e.g., "llama3:latest" -> "llama3-latest.gguf") */
+    char sanitized_name[256];
+    snprintf(sanitized_name, sizeof(sanitized_name), "%s", model_name);
+    
+    /* Replace ':' with '-' for filename */
+    char *colon = strchr(sanitized_name, ':');
+    if (colon) {
+        *colon = '-';
+    }
+    
+    /* Construct output path */
+    snprintf(output_path, sizeof(output_path), "%s/%s.gguf", 
+             ctx->config.models_path ? ctx->config.models_path : "~/.allama/models", 
+             sanitized_name);
+    
+    /* Determine which download URL to use */
+    char actual_download_url[512];
+    if (download_url && strlen(download_url) > 0) {
+        /* Use provided download URL from catalog */
+        snprintf(actual_download_url, sizeof(actual_download_url), "%s", download_url);
+    } else {
+        /* Fall back to default URL construction */
+        snprintf(actual_download_url, sizeof(actual_download_url), 
+                 "%s/%s/resolve/main/%s.gguf",
+                 ctx->remote_registry_url, sanitized_name, sanitized_name);
+    }
+    
+    /* Download the model */
+    download_result_t dl_result = http_download_file(
+        actual_download_url,
+        output_path,
+        (download_progress_callback_t)progress_callback,
+        user_data,
+        3600  /* 1 hour timeout */
+    );
+    
+    if (dl_result != DOWNLOAD_SUCCESS) {
+        if (ctx->audit_enabled) {
+            audit_log_security_violation("model_registry_pull", model_name, 
+                                      download_result_to_string(dl_result));
+        }
+        return MODEL_REGISTRY_ERROR_NETWORK;
+    }
+    
+    /* Compute SHA256 hash */
+    uint8_t digest[SHA256_DIGEST_LENGTH];
+    FILE *file = fopen(output_path, "rb");
+    if (!file) {
+        if (ctx->audit_enabled) {
+            audit_log_security_violation("model_registry_pull", model_name, "file open failed");
+        }
+        return MODEL_REGISTRY_ERROR_IO;
+    }
+    
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    
+    uint8_t buffer[8192];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        SHA256_Update(&sha256, buffer, bytes_read);
+    }
+    fclose(file);
+    SHA256_Final(digest, &sha256);
+    
+    char hex_digest[SHA256_DIGEST_LENGTH * 2 + 1];
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        snprintf(hex_digest + (i * 2), 3, "%02x", digest[i]);
+    }
+    
+    /* Get file size */
+    struct stat st;
+    if (stat(output_path, &st) != 0) {
+        if (ctx->audit_enabled) {
+            audit_log_security_violation("model_registry_pull", model_name, "stat failed");
+        }
+        return MODEL_REGISTRY_ERROR_IO;
+    }
+    
+    /* Register model in registry */
+    pthread_mutex_lock(&ctx->mutex);
+    
+    sql = "INSERT INTO models (name, tag, digest, path, size, created_at, modified_at) "
+          "VALUES (?, 'latest', ?, ?, ?, ?, ?);";
+    rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        if (ctx->audit_enabled) {
+            audit_log_security_violation("model_registry_pull", model_name, "insert failed");
+        }
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+    
+    uint64_t now = time(NULL);
+    sqlite3_bind_text(stmt, 1, model_name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, hex_digest, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, output_path, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 4, st.st_size);
+    sqlite3_bind_int64(stmt, 5, now);
+    sqlite3_bind_int64(stmt, 6, now);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    pthread_mutex_unlock(&ctx->mutex);
+    
+    if (rc != SQLITE_DONE) {
+        if (ctx->audit_enabled) {
+            audit_log_security_violation("model_registry_pull", model_name, "insert failed");
+        }
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    if (ctx->audit_enabled) {
+        audit_log_auth_success("model_registry_pull", model_name);
+    }
+
+    return MODEL_REGISTRY_SUCCESS;
+}
+
+/**
  * @brief List all registered models
  */
 model_registry_result_t model_registry_list(

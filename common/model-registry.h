@@ -136,6 +136,29 @@ model_registry_result_t model_registry_pull(
 );
 
 /**
+ * @brief Pull a model from remote registry with custom download URL
+ * 
+ * @param ctx Registry context
+ * @param model_name Model name (e.g., "llama3:latest")
+ * @param download_url Custom download URL (optional, can be NULL)
+ * @param progress_callback Optional progress callback
+ * @param user_data User data for callback
+ * @return model_registry_result_t Result code
+ * 
+ * @post On success, model is downloaded and registered
+ * @post On failure, no changes to registry
+ * 
+ * @threadsafe Yes (uses internal mutex)
+ */
+model_registry_result_t model_registry_pull_with_url(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *download_url,
+    void (*progress_callback)(const char *model, float progress, void *user_data),
+    void *user_data
+);
+
+/**
  * @brief List all registered models
  * 
  * @param ctx Registry context
