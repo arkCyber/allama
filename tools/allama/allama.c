@@ -21,6 +21,8 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 /* ACSL annotations for formal verification */
 /*@ predicate valid_allama_context(struct allama_context *ctx) = 
@@ -100,6 +102,9 @@ static allama_result_t cmd_mem(allama_context_t *ctx);
 static allama_result_t cmd_catalog(allama_context_t *ctx);
 static allama_result_t cmd_catalog_search(allama_context_t *ctx, const char *pattern);
 static allama_result_t cmd_catalog_update(allama_context_t *ctx);
+static allama_result_t cmd_cache(allama_context_t *ctx, const char *action);
+static allama_result_t cmd_logs(allama_context_t *ctx, const char *action);
+
 static allama_result_t cmd_help(const char *command_name);
 
 /**
@@ -129,6 +134,8 @@ static void print_usage(const char *program_name) {
     printf("  mem               Display memory usage and model memory requirements\n");
     printf("  catalog           List available models from Hugging Face catalog\n");
     printf("  catalog-update    Update model catalog from Hugging Face\n");
+    printf("  cache [action]    Manage the model cache (stats, clear)\n");
+    printf("  logs [action]     View or clear audit logs (view, clear)\n");
     printf("  help [command]    Show help for a specific command\n");
     printf("\n");
     printf("Options:\n");
@@ -652,12 +659,18 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         download_url = strdup(catalog_entry->download_url);
         if (catalog_entry->tag) {
             printf("Selected catalog variant: %s:%s\n", model_name_copy, catalog_entry->tag);
+            if (!has_explicit_tag) {
+                printf("Auto selection result: %s:%s\n", model_name_copy, catalog_entry->tag);
+            }
         }
         printf("Using catalog download URL: %s\n", download_url);
     } else if (catalog_entry && catalog_entry->download_url) {
         download_url = strdup(catalog_entry->download_url);
         if (catalog_entry->tag) {
             printf("Auto-selected variant for %s: %s\n", model_name_copy, catalog_entry->tag);
+            if (!has_explicit_tag) {
+                printf("Auto selection result: %s:%s\n", model_name_copy, catalog_entry->tag);
+            }
         }
         printf("Using catalog download URL: %s\n", download_url);
     }
@@ -1779,6 +1792,148 @@ static allama_result_t cmd_catalog_search(allama_context_t *ctx, const char *pat
 }
 
 /**
+ * @brief Cache command handler
+ */
+static allama_result_t cmd_cache(allama_context_t *ctx, const char *action) {
+    if (!ctx || !ctx->initialized) {
+        print_allama_error("Cache", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (!action) {
+        action = "stats";  /* Default action */
+    }
+
+    /* Get cache path from catalog config */
+    const char *home = getenv("HOME");
+    char cache_path[512];
+    if (home) {
+        snprintf(cache_path, sizeof(cache_path), "%s/.allama/cache", home);
+    } else {
+        strcpy(cache_path, "~/.allama/cache");
+    }
+
+    if (strcmp(action, "stats") == 0) {
+        /* Show cache statistics */
+        printf("Cache Statistics:\n");
+        printf("  Path: %s\n", cache_path);
+        
+        /* Calculate cache size */
+        DIR *dir = opendir(cache_path);
+        if (dir) {
+            uint64_t total_size = 0;
+            uint32_t file_count = 0;
+            struct dirent *entry;
+            
+            while ((entry = readdir(dir)) != NULL) {
+                if (entry->d_type == DT_REG) {
+                    char file_path[768];
+                    snprintf(file_path, sizeof(file_path), "%s/%s", cache_path, entry->d_name);
+                    
+                    struct stat st;
+                    if (stat(file_path, &st) == 0) {
+                        total_size += st.st_size;
+                        file_count++;
+                    }
+                }
+            }
+            closedir(dir);
+            
+            printf("  Files: %u\n", file_count);
+            printf("  Size: %.2f MB\n", (double)total_size / (1024 * 1024));
+        } else {
+            printf("  Files: 0\n");
+            printf("  Size: 0.00 MB\n");
+        }
+        
+        return ALLAMA_SUCCESS;
+    } else if (strcmp(action, "clear") == 0) {
+        /* Clear cache */
+        printf("Clearing cache at: %s\n", cache_path);
+        
+        DIR *dir = opendir(cache_path);
+        if (!dir) {
+            printf("Cache is empty or does not exist.\n");
+            return ALLAMA_SUCCESS;
+        }
+        
+        uint32_t deleted_count = 0;
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_type == DT_REG) {
+                char file_path[768];
+                snprintf(file_path, sizeof(file_path), "%s/%s", cache_path, entry->d_name);
+                
+                if (remove(file_path) == 0) {
+                    deleted_count++;
+                }
+            }
+        }
+        closedir(dir);
+        
+        printf("Deleted %u cache files.\n", deleted_count);
+        return ALLAMA_SUCCESS;
+    } else {
+        fprintf(stderr, "Error: Unknown cache action: %s\n", action);
+        fprintf(stderr, "Valid actions: stats, clear\n");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+}
+
+/**
+ * @brief Logs command handler
+ */
+static allama_result_t cmd_logs(allama_context_t *ctx, const char *action) {
+    if (!ctx || !ctx->initialized) {
+        print_allama_error("Logs", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (!action) {
+        action = "view";  /* Default action */
+    }
+
+    const char *log_path = "/tmp/allama_audit.log";
+
+    if (strcmp(action, "view") == 0) {
+        /* View logs */
+        FILE *file = fopen(log_path, "r");
+        if (!file) {
+            printf("No log file found at: %s\n", log_path);
+            return ALLAMA_SUCCESS;
+        }
+
+        printf("Audit Log (%s):\n", log_path);
+        printf("----------------------------------------\n");
+
+        char line[512];
+        while (fgets(line, sizeof(line), file)) {
+            printf("%s", line);
+        }
+
+        fclose(file);
+        printf("----------------------------------------\n");
+        return ALLAMA_SUCCESS;
+    } else if (strcmp(action, "clear") == 0) {
+        /* Clear logs */
+        FILE *file = fopen(log_path, "w");
+        if (file) {
+            fclose(file);
+            printf("Log file cleared: %s\n", log_path);
+            return ALLAMA_SUCCESS;
+        } else {
+            fprintf(stderr, "Error: Failed to clear log file\n");
+            return ALLAMA_ERROR_IO;
+        }
+    } else {
+        fprintf(stderr, "Error: Unknown logs action: %s\n", action);
+        fprintf(stderr, "Valid actions: view (default), clear\n");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+}
+
+/**
  * @brief Help command handler for specific command
  */
 static allama_result_t cmd_help(const char *command_name) {
@@ -1907,6 +2062,24 @@ static allama_result_t cmd_help(const char *command_name) {
         printf("\n");
         printf("Update model catalog from Hugging Face.\n");
         printf("Fetches latest model information from the API.\n");
+    } else if (strcmp(command_name, "cache") == 0) {
+        printf("Usage: allama cache [action]\n");
+        printf("\n");
+        printf("Manage the model cache.\n");
+        printf("Actions: stats (default), clear\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama cache stats\n");
+        printf("  allama cache clear\n");
+    } else if (strcmp(command_name, "logs") == 0) {
+        printf("Usage: allama logs [action]\n");
+        printf("\n");
+        printf("View or clear audit logs.\n");
+        printf("Actions: view (default), clear\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama logs view\n");
+        printf("  allama logs clear\n");
     } else {
         printf("Unknown command: %s\n", command_name);
         printf("\n");
@@ -2077,6 +2250,18 @@ int main(int argc, char *argv[]) {
         cmd_result = cmd_catalog(&ctx);
     } else if (strcmp(command, "catalog-update") == 0) {
         cmd_result = cmd_catalog_update(&ctx);
+    } else if (strcmp(command, "cache") == 0) {
+        if (optind + 1 >= argc) {
+            cmd_result = cmd_cache(&ctx, NULL);
+        } else {
+            cmd_result = cmd_cache(&ctx, argv[optind + 1]);
+        }
+    } else if (strcmp(command, "logs") == 0) {
+        if (optind + 1 >= argc) {
+            cmd_result = cmd_logs(&ctx, NULL);
+        } else {
+            cmd_result = cmd_logs(&ctx, argv[optind + 1]);
+        }
     } else {
         fprintf(stderr, "Error: Unknown command: %s\n", command);
         print_usage(argv[0]);
