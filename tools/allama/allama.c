@@ -1037,6 +1037,8 @@ static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_nam
   ensures \result == ALLAMA_SUCCESS || \result == ALLAMA_ERROR_IO;
 @*/
 static allama_result_t cmd_serve(allama_context_t *ctx) {
+    (void)ctx; /* Suppress unused parameter warning */
+    
     /* Get the llama-server binary path */
     char server_path[512];
     snprintf(server_path, sizeof(server_path), "%s/bin/llama-server", BUILD_DIR);

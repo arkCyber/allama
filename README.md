@@ -49,7 +49,8 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 
 ### Model Management
 - **Local Model Registry** (SQLite-based metadata storage)
-- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem)
+- **Hugging Face Model Catalog** (cached catalog of available models with auto-update)
+- **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem, catalog)
 - **Modelfile Support** (model definition DSL for custom configurations)
 - **REST API** (Ollama-compatible endpoints: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
 
@@ -1544,7 +1545,8 @@ Il s'agit d'une version sécurisée et de niveau aérospatial de [llama.cpp](htt
 
 ### Gestion de modèles
 - **Registre de modèles local** (stockage de métadonnées basé sur SQLite)
-- **CLI Allama** (commandes de gestion de modèles : pull, list, show, rm, cp, add, create, search, stats, validate, mem)
+- **Catalogue de modèles Hugging Face** (catalogue mis en cache des modèles disponibles avec mise à jour automatique)
+- **CLI Allama** (commandes de gestion de modèles : pull, list, show, rm, cp, add, create, search, stats, validate, mem, catalog)
 - **Support Modelfile** (DSL de définition de modèle pour configurations personnalisées)
 - **API REST** (points de terminaison compatibles Ollama : /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
 
