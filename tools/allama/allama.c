@@ -48,7 +48,8 @@ typedef enum {
     ALLAMA_ERROR_INVALID_ARGS = 1,
     ALLAMA_ERROR_REGISTRY = 2,
     ALLAMA_ERROR_IO = 3,
-    ALLAMA_ERROR_PERMISSION = 4
+    ALLAMA_ERROR_PERMISSION = 4,
+    ALLAMA_ERROR_CATALOG = 5
 } allama_result_t;
 
 /* Build directory for llama binaries */
@@ -124,9 +125,11 @@ static void print_usage(const char *program_name) {
     printf("  serve             Start the llama-server with model registry\n");
     printf("  mem               Display memory usage and model memory requirements\n");
     printf("  catalog           List available models from Hugging Face catalog\n");
+    printf("  catalog-update    Update model catalog from Hugging Face\n");
     printf("\n");
     printf("Options:\n");
     printf("  -v, --verbose     Enable verbose output\n");
+    printf("  -V, --version     Show version information\n");
     printf("  -h, --help        Show this help message\n");
     printf("\n");
     printf("Examples:\n");
@@ -380,6 +383,28 @@ static void print_allama_error(const char *operation, const char *error_message)
 }
 
 /**
+ * @brief Version command handler
+ */
+static allama_result_t cmd_version(void) {
+    printf("allama version 1.0.0\n");
+    printf("Model Management CLI for allama\n");
+    printf("Build: %s %s\n", __DATE__, __TIME__);
+    return ALLAMA_SUCCESS;
+}
+
+/**
+ * @brief Confirmation prompt helper
+ */
+static bool confirm_action(const char *action, const char *target) {
+    char response[10];
+    printf("⚠️  Are you sure you want to %s %s? [y/N]: ", action, target);
+    if (fgets(response, sizeof(response), stdin) == NULL) {
+        return false;
+    }
+    return (response[0] == 'y' || response[0] == 'Y');
+}
+
+/**
  * @brief Progress callback for model download
  */
 static void progress_callback(const char *model, float progress, void *user_data) {
@@ -435,6 +460,7 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
     
     if (catalog_entry) {
         model_catalog_entry_free(catalog_entry);
+        free(catalog_entry);
     }
 
     /* Retry mechanism for network operations */
@@ -459,6 +485,11 @@ static allama_result_t cmd_pull(allama_context_t *ctx, const char *model_name) {
         }
 
         if (result == MODEL_REGISTRY_ERROR_NETWORK && attempt < max_retries) {
+            if (download_url && attempt == 1) {
+                printf("⚠️  Catalog URL failed, retrying with default registry URL...\n");
+                free(download_url);
+                download_url = NULL;
+            }
             printf("⚠️  Network error (attempt %d/%d), retrying in 2 seconds...\n", 
                    attempt, max_retries);
             sleep(2);
@@ -1414,6 +1445,27 @@ static allama_result_t cmd_mem(allama_context_t *ctx) {
 }
 
 /**
+ * @brief Catalog update command handler
+ */
+static allama_result_t cmd_catalog_update(allama_context_t *ctx) {
+    if (!ctx || !ctx->initialized) {
+        print_allama_error("Catalog Update", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    printf("Updating model catalog from Hugging Face...\n");
+
+    model_catalog_result_t result = model_catalog_update(ctx->catalog_ctx);
+    if (result != MODEL_CATALOG_SUCCESS) {
+        print_catalog_error_with_suggestion("Catalog Update", result);
+        return ALLAMA_ERROR_CATALOG;
+    }
+
+    printf("✅ Model catalog updated successfully\n");
+    return ALLAMA_SUCCESS;
+}
+
+/**
  * @brief Catalog command handler - list available models from Hugging Face catalog
  */
 /*@ 
@@ -1481,17 +1533,21 @@ int main(int argc, char *argv[]) {
     /* Parse options */
     static struct option long_options[] = {
         {"verbose", no_argument, 0, 'v'},
+        {"version", no_argument, 0, 'V'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
     int opt;
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "vh", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vVh", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'v':
                 verbose = true;
                 break;
+            case 'V':
+                cmd_version();
+                return ALLAMA_SUCCESS;
             case 'h':
                 print_usage(argv[0]);
                 return ALLAMA_SUCCESS;
@@ -1534,7 +1590,12 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Error: stop command requires model name\n");
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
-            cmd_result = cmd_stop(&ctx, argv[optind + 1]);
+            if (!confirm_action("stop", argv[optind + 1])) {
+                printf("Operation cancelled\n");
+                cmd_result = ALLAMA_SUCCESS;
+            } else {
+                cmd_result = cmd_stop(&ctx, argv[optind + 1]);
+            }
         }
     } else if (strcmp(command, "show") == 0) {
         if (optind + 1 >= argc) {
@@ -1548,7 +1609,12 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Error: rm command requires model name\n");
             cmd_result = ALLAMA_ERROR_INVALID_ARGS;
         } else {
-            cmd_result = cmd_rm(&ctx, argv[optind + 1], false);
+            if (!confirm_action("remove", argv[optind + 1])) {
+                printf("Operation cancelled\n");
+                cmd_result = ALLAMA_SUCCESS;
+            } else {
+                cmd_result = cmd_rm(&ctx, argv[optind + 1], false);
+            }
         }
     } else if (strcmp(command, "cp") == 0) {
         if (optind + 2 >= argc) {
@@ -1600,6 +1666,8 @@ int main(int argc, char *argv[]) {
         cmd_result = cmd_mem(&ctx);
     } else if (strcmp(command, "catalog") == 0) {
         cmd_result = cmd_catalog(&ctx);
+    } else if (strcmp(command, "catalog-update") == 0) {
+        cmd_result = cmd_catalog_update(&ctx);
     } else {
         fprintf(stderr, "Error: Unknown command: %s\n", command);
         print_usage(argv[0]);
