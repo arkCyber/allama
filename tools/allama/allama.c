@@ -104,6 +104,7 @@ static allama_result_t cmd_catalog_search(allama_context_t *ctx, const char *pat
 static allama_result_t cmd_catalog_update(allama_context_t *ctx);
 static allama_result_t cmd_cache(allama_context_t *ctx, const char *action);
 static allama_result_t cmd_logs(allama_context_t *ctx, const char *action);
+static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const char *model_name, const char *tag_name);
 
 static allama_result_t cmd_help(const char *command_name);
 
@@ -136,6 +137,7 @@ static void print_usage(const char *program_name) {
     printf("  catalog-update    Update model catalog from Hugging Face\n");
     printf("  cache [action]    Manage the model cache (stats, clear)\n");
     printf("  logs [action]     View or clear audit logs (view, clear)\n");
+    printf("  tag <action> <model> [tag] Manage model tags (add, remove, list)\n");
     printf("  help [command]    Show help for a specific command\n");
     printf("\n");
     printf("Options:\n");
@@ -1934,6 +1936,88 @@ static allama_result_t cmd_logs(allama_context_t *ctx, const char *action) {
 }
 
 /**
+ * @brief Tag command handler
+ */
+static allama_result_t cmd_tag(allama_context_t *ctx, const char *action, const char *model_name, const char *tag_name) {
+    if (!ctx || !ctx->initialized) {
+        print_allama_error("Tag", "Invalid context");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+
+    if (!action) {
+        action = "list";  /* Default action */
+    }
+
+    if (strcmp(action, "add") == 0) {
+        if (!model_name || !tag_name) {
+            fprintf(stderr, "Error: tag add requires model name and tag\n");
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        model_registry_result_t result = model_registry_add_tag(ctx->registry_ctx, model_name, tag_name);
+        if (result == MODEL_REGISTRY_SUCCESS) {
+            printf("✅ Added tag '%s' to model '%s'\n", tag_name, model_name);
+            return ALLAMA_SUCCESS;
+        } else if (result == MODEL_REGISTRY_ERROR_EXISTS) {
+            fprintf(stderr, "Error: Tag '%s' already exists for model '%s'\n", tag_name, model_name);
+            return ALLAMA_ERROR_REGISTRY;
+        } else if (result == MODEL_REGISTRY_ERROR_NOT_FOUND) {
+            fprintf(stderr, "Error: Model '%s' not found\n", model_name);
+            return ALLAMA_ERROR_REGISTRY;
+        } else {
+            print_error_with_suggestion("Tag", result);
+            return ALLAMA_ERROR_REGISTRY;
+        }
+    } else if (strcmp(action, "remove") == 0) {
+        if (!model_name || !tag_name) {
+            fprintf(stderr, "Error: tag remove requires model name and tag\n");
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        model_registry_result_t result = model_registry_remove_tag(ctx->registry_ctx, model_name, tag_name);
+        if (result == MODEL_REGISTRY_SUCCESS) {
+            printf("✅ Removed tag '%s' from model '%s'\n", tag_name, model_name);
+            return ALLAMA_SUCCESS;
+        } else {
+            print_error_with_suggestion("Tag", result);
+            return ALLAMA_ERROR_REGISTRY;
+        }
+    } else if (strcmp(action, "list") == 0) {
+        if (!model_name) {
+            fprintf(stderr, "Error: tag list requires model name\n");
+            return ALLAMA_ERROR_INVALID_ARGS;
+        }
+
+        char **tags = NULL;
+        size_t count = 0;
+        model_registry_result_t result = model_registry_list_tags(ctx->registry_ctx, model_name, &tags, &count);
+        
+        if (result == MODEL_REGISTRY_SUCCESS) {
+            printf("Tags for model '%s':\n", model_name);
+            if (count == 0) {
+                printf("  (no tags)\n");
+            } else {
+                for (size_t i = 0; i < count; i++) {
+                    printf("  - %s\n", tags[i]);
+                }
+            }
+            model_registry_free_tags(tags, count);
+            return ALLAMA_SUCCESS;
+        } else if (result == MODEL_REGISTRY_ERROR_NOT_FOUND) {
+            fprintf(stderr, "Error: Model '%s' not found\n", model_name);
+            return ALLAMA_ERROR_REGISTRY;
+        } else {
+            print_error_with_suggestion("Tag", result);
+            return ALLAMA_ERROR_REGISTRY;
+        }
+    } else {
+        fprintf(stderr, "Error: Unknown tag action: %s\n", action);
+        fprintf(stderr, "Valid actions: add, remove, list\n");
+        return ALLAMA_ERROR_INVALID_ARGS;
+    }
+}
+
+/**
  * @brief Help command handler for specific command
  */
 static allama_result_t cmd_help(const char *command_name) {
@@ -2080,6 +2164,16 @@ static allama_result_t cmd_help(const char *command_name) {
         printf("Examples:\n");
         printf("  allama logs view\n");
         printf("  allama logs clear\n");
+    } else if (strcmp(command_name, "tag") == 0) {
+        printf("Usage: allama tag <action> <model> [tag]\n");
+        printf("\n");
+        printf("Manage tags for models.\n");
+        printf("Actions: add, remove, list\n");
+        printf("\n");
+        printf("Examples:\n");
+        printf("  allama tag add llama3:latest production\n");
+        printf("  allama tag remove llama3:latest production\n");
+        printf("  allama tag list llama3:latest\n");
     } else {
         printf("Unknown command: %s\n", command_name);
         printf("\n");
@@ -2261,6 +2355,16 @@ int main(int argc, char *argv[]) {
             cmd_result = cmd_logs(&ctx, NULL);
         } else {
             cmd_result = cmd_logs(&ctx, argv[optind + 1]);
+        }
+    } else if (strcmp(command, "tag") == 0) {
+        if (optind + 1 >= argc) {
+            fprintf(stderr, "Error: tag command requires action\n");
+            cmd_result = ALLAMA_ERROR_INVALID_ARGS;
+        } else {
+            const char *action = argv[optind + 1];
+            const char *model_name = (optind + 2 < argc) ? argv[optind + 2] : NULL;
+            const char *tag_name = (optind + 3 < argc) ? argv[optind + 3] : NULL;
+            cmd_result = cmd_tag(&ctx, action, model_name, tag_name);
         }
     } else {
         fprintf(stderr, "Error: Unknown command: %s\n", command);

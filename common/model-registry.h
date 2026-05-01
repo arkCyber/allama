@@ -41,7 +41,8 @@ typedef enum {
     MODEL_REGISTRY_ERROR_CORRUPTED = -7,
     MODEL_REGISTRY_ERROR_NETWORK = -8,
     MODEL_REGISTRY_ERROR_VALIDATION = -9,
-    MODEL_REGISTRY_ERROR_LOCKED = -10
+    MODEL_REGISTRY_ERROR_LOCKED = -10,
+    MODEL_REGISTRY_ERROR_INVALID_ARGS = -11
 } model_registry_result_t;
 
 /**
@@ -392,6 +393,67 @@ void model_metadata_free(model_metadata_t *metadata);
  * @param count Number of models
  */
 void model_metadata_free_array(model_metadata_t *models, size_t count);
+
+/**
+ * @brief Add a tag to a model
+ * 
+ * @param ctx Registry context
+ * @param model_name Model name
+ * @param tag Tag to add
+ * @return model_registry_result_t Result code
+ * 
+ * @threadsafe Yes (uses internal mutex)
+ */
+model_registry_result_t model_registry_add_tag(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *tag
+);
+
+/**
+ * @brief Remove a tag from a model
+ * 
+ * @param ctx Registry context
+ * @param model_name Model name
+ * @param tag Tag to remove
+ * @return model_registry_result_t Result code
+ * 
+ * @threadsafe Yes (uses internal mutex)
+ */
+model_registry_result_t model_registry_remove_tag(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *tag
+);
+
+/**
+ * @brief List all tags for a model
+ * 
+ * @param ctx Registry context
+ * @param model_name Model name
+ * @param tags Output array of tags
+ * @param count Output number of tags
+ * @return model_registry_result_t Result code
+ * 
+ * @post On success, tags array contains all tags for the model
+ * @post Caller is responsible for freeing tags array
+ * 
+ * @threadsafe Yes (uses internal mutex)
+ */
+model_registry_result_t model_registry_list_tags(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    char ***tags,
+    size_t *count
+);
+
+/**
+ * @brief Free array of tags
+ * 
+ * @param tags Array of tags
+ * @param count Number of tags
+ */
+void model_registry_free_tags(char **tags, size_t count);
 
 /**
  * @brief Convert result code to string

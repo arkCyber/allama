@@ -79,10 +79,20 @@ static const char *SQL_SCHEMA =
     "backend TEXT,"
     "loaded INTEGER DEFAULT 0"
     ");"
+    "CREATE TABLE IF NOT EXISTS tags ("
+    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "model_id INTEGER NOT NULL,"
+    "tag TEXT NOT NULL,"
+    "created_at INTEGER NOT NULL,"
+    "FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,"
+    "UNIQUE(model_id, tag)"
+    ");"
     "CREATE INDEX IF NOT EXISTS idx_name ON models(name);"
     "CREATE INDEX IF NOT EXISTS idx_tag ON models(tag);"
     "CREATE INDEX IF NOT EXISTS idx_digest ON models(digest);"
-    "CREATE INDEX IF NOT EXISTS idx_loaded ON models(loaded);";
+    "CREATE INDEX IF NOT EXISTS idx_loaded ON models(loaded);"
+    "CREATE INDEX IF NOT EXISTS idx_tags_model_id ON tags(model_id);"
+    "CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);";
 
 /**
  * @brief Initialize SQLite database
@@ -1588,6 +1598,237 @@ const char *model_registry_result_to_string(model_registry_result_t result) {
         case MODEL_REGISTRY_ERROR_NETWORK: return "network error";
         case MODEL_REGISTRY_ERROR_VALIDATION: return "validation error";
         case MODEL_REGISTRY_ERROR_LOCKED: return "locked";
+        case MODEL_REGISTRY_ERROR_INVALID_ARGS: return "invalid arguments";
         default: return "unknown error";
     }
+}
+
+/**
+ * @brief Add a tag to a model
+ */
+model_registry_result_t model_registry_add_tag(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *tag
+) {
+    if (!ctx || !ctx->initialized || !model_name || !tag) {
+        return MODEL_REGISTRY_ERROR_INVALID_ARGS;
+    }
+
+    pthread_mutex_lock(&ctx->mutex);
+
+    /* Get model ID */
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id FROM models WHERE name = ? LIMIT 1;";
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_text(stmt, 1, model_name, -1, SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    int64_t model_id = -1;
+    if (rc == SQLITE_ROW) {
+        model_id = sqlite3_column_int64(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+
+    if (model_id == -1) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_NOT_FOUND;
+    }
+
+    /* Insert tag */
+    sql = "INSERT INTO tags (model_id, tag, created_at) VALUES (?, ?, ?);";
+    rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_int64(stmt, 1, model_id);
+    sqlite3_bind_text(stmt, 2, tag, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 3, (sqlite3_int64)time(NULL));
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    pthread_mutex_unlock(&ctx->mutex);
+
+    if (rc == SQLITE_CONSTRAINT) {
+        return MODEL_REGISTRY_ERROR_EXISTS;
+    } else if (rc != SQLITE_DONE) {
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    if (ctx->audit_enabled) {
+        char audit_msg[256];
+        snprintf(audit_msg, sizeof(audit_msg), "model=%s,tag=%s", model_name, tag);
+        audit_log_auth_success("model_registry_add_tag", audit_msg);
+    }
+
+    return MODEL_REGISTRY_SUCCESS;
+}
+
+/**
+ * @brief Remove a tag from a model
+ */
+model_registry_result_t model_registry_remove_tag(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    const char *tag
+) {
+    if (!ctx || !ctx->initialized || !model_name || !tag) {
+        return MODEL_REGISTRY_ERROR_INVALID_ARGS;
+    }
+
+    pthread_mutex_lock(&ctx->mutex);
+
+    /* Get model ID */
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id FROM models WHERE name = ? LIMIT 1;";
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_text(stmt, 1, model_name, -1, SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    int64_t model_id = -1;
+    if (rc == SQLITE_ROW) {
+        model_id = sqlite3_column_int64(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+
+    if (model_id == -1) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_NOT_FOUND;
+    }
+
+    /* Delete tag */
+    sql = "DELETE FROM tags WHERE model_id = ? AND tag = ?;";
+    rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_int64(stmt, 1, model_id);
+    sqlite3_bind_text(stmt, 2, tag, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    pthread_mutex_unlock(&ctx->mutex);
+
+    if (rc != SQLITE_DONE) {
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    if (ctx->audit_enabled) {
+        char audit_msg[256];
+        snprintf(audit_msg, sizeof(audit_msg), "model=%s,tag=%s", model_name, tag);
+        audit_log_auth_success("model_registry_remove_tag", audit_msg);
+    }
+
+    return MODEL_REGISTRY_SUCCESS;
+}
+
+/**
+ * @brief List all tags for a model
+ */
+model_registry_result_t model_registry_list_tags(
+    model_registry_context_t *ctx,
+    const char *model_name,
+    char ***tags,
+    size_t *count
+) {
+    if (!ctx || !ctx->initialized || !model_name || !tags || !count) {
+        return MODEL_REGISTRY_ERROR_INVALID_ARGS;
+    }
+
+    pthread_mutex_lock(&ctx->mutex);
+
+    /* Get model ID */
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id FROM models WHERE name = ? LIMIT 1;";
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_text(stmt, 1, model_name, -1, SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    int64_t model_id = -1;
+    if (rc == SQLITE_ROW) {
+        model_id = sqlite3_column_int64(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+
+    if (model_id == -1) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_NOT_FOUND;
+    }
+
+    /* Get tags */
+    sql = "SELECT tag FROM tags WHERE model_id = ? ORDER BY tag;";
+    rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_DATABASE;
+    }
+
+    sqlite3_bind_int64(stmt, 1, model_id);
+
+    /* Count tags */
+    size_t tag_count = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        tag_count++;
+    }
+    sqlite3_reset(stmt);
+
+    /* Allocate array */
+    char **tag_array = calloc(tag_count, sizeof(char *));
+    if (!tag_array) {
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_REGISTRY_ERROR_IO;
+    }
+
+    /* Fill array */
+    size_t idx = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW && idx < tag_count) {
+        tag_array[idx++] = strdup((const char *)sqlite3_column_text(stmt, 0));
+    }
+
+    sqlite3_finalize(stmt);
+    pthread_mutex_unlock(&ctx->mutex);
+
+    *tags = tag_array;
+    *count = tag_count;
+
+    if (ctx->audit_enabled) {
+        char audit_msg[256];
+        snprintf(audit_msg, sizeof(audit_msg), "model=%s,count=%zu", model_name, tag_count);
+        audit_log_auth_success("model_registry_list_tags", audit_msg);
+    }
+
+    return MODEL_REGISTRY_SUCCESS;
+}
+
+/**
+ * @brief Free array of tags
+ */
+void model_registry_free_tags(char **tags, size_t count) {
+    if (!tags) return;
+    
+    for (size_t i = 0; i < count; i++) {
+        if (tags[i]) {
+            free(tags[i]);
+        }
+    }
+    free(tags);
 }
