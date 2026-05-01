@@ -269,7 +269,7 @@ static void test_model_search(void) {
 static void test_model_copy(void) {
     printf("\n=== Testing Model Copy ===\n");
     
-    model_registry_result_t result = model_registry_copy(test_ctx, "test-model", "test-model-copy");
+    model_registry_result_t result = model_registry_copy(test_ctx, "test-model", "test-model-copy", NULL, NULL);
     TEST_ASSERT(result == MODEL_REGISTRY_SUCCESS, "Model copy operation");
     
     /* Verify copy exists */
@@ -283,7 +283,7 @@ static void test_model_copy(void) {
     }
     
     /* Test copy to existing name */
-    result = model_registry_copy(test_ctx, "test-model", "test-model-copy");
+    result = model_registry_copy(test_ctx, "test-model", "test-model-copy", NULL, NULL);
     TEST_ASSERT(result == MODEL_REGISTRY_ERROR_EXISTS, "Copy to existing name rejected");
 }
 

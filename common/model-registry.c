@@ -189,19 +189,33 @@ static int mkdir_recursive(const char *path) {
  * @param digest Output digest (32 bytes)
  * @return model_registry_result_t Result code
  */
-static model_registry_result_t calculate_digest(const char *file_path, unsigned char *digest) {
+static model_registry_result_t calculate_digest(const char *file_path, unsigned char *digest, void (*progress_callback)(float, void *), void *user_data) {
     FILE *file = fopen(file_path, "rb");
     if (!file) {
         return MODEL_REGISTRY_ERROR_IO;
     }
 
+    /* Get file size for progress tracking */
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
     SHA256_CTX sha256;
     SHA256_Init(&sha256);
 
     unsigned char buffer[4096];
     size_t bytes_read;
+    size_t total_read = 0;
+    
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
         SHA256_Update(&sha256, buffer, bytes_read);
+        total_read += bytes_read;
+        
+        /* Call progress callback if provided */
+        if (progress_callback && file_size > 0) {
+            float progress = (float)total_read / (float)file_size;
+            progress_callback(progress, user_data);
+        }
     }
 
     fclose(file);
@@ -913,7 +927,9 @@ model_registry_result_t model_registry_remove(
 model_registry_result_t model_registry_copy(
     model_registry_context_t *ctx,
     const char *src_name,
-    const char *dst_name
+    const char *dst_name,
+    void (*progress_callback)(float, void *),
+    void *user_data
 ) {
     if (!ctx || !ctx->initialized || !src_name || !dst_name) {
         return MODEL_REGISTRY_ERROR_INVALID_PATH;
@@ -966,10 +982,24 @@ model_registry_result_t model_registry_copy(
         return MODEL_REGISTRY_ERROR_IO;
     }
 
+    /* Get file size for progress tracking */
+    fseek(src_file, 0, SEEK_END);
+    long file_size = ftell(src_file);
+    fseek(src_file, 0, SEEK_SET);
+
     unsigned char buffer[4096];
     size_t bytes_read;
+    size_t total_read = 0;
+    
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
         fwrite(buffer, 1, bytes_read, dst_file);
+        total_read += bytes_read;
+        
+        /* Call progress callback if provided */
+        if (progress_callback && file_size > 0) {
+            float progress = (float)total_read / (float)file_size;
+            progress_callback(progress, user_data);
+        }
     }
 
     fclose(src_file);
@@ -1057,7 +1087,7 @@ model_registry_result_t model_registry_add(
     /* Calculate digest */
     unsigned char digest[32];
     char digest_str[65];
-    model_registry_result_t result = calculate_digest(file_path, digest);
+    model_registry_result_t result = calculate_digest(file_path, digest, NULL, NULL);
     if (result != MODEL_REGISTRY_SUCCESS) {
         pthread_mutex_unlock(&ctx->mutex);
         return result;
@@ -1287,7 +1317,9 @@ model_registry_result_t model_registry_stats(
 model_registry_result_t model_registry_validate(
     model_registry_context_t *ctx,
     const char *model_name,
-    bool *is_valid
+    bool *is_valid,
+    void (*progress_callback)(float, void *),
+    void *user_data
 ) {
     if (!ctx || !ctx->initialized || !model_name || !is_valid) {
         return MODEL_REGISTRY_ERROR_INVALID_PATH;
@@ -1306,7 +1338,7 @@ model_registry_result_t model_registry_validate(
     /* Calculate current digest */
     unsigned char digest[32];
     char digest_str[65];
-    result = calculate_digest(meta->path, digest);
+    result = calculate_digest(meta->path, digest, progress_callback, user_data);
     if (result != MODEL_REGISTRY_SUCCESS) {
         model_metadata_free(meta);
         pthread_mutex_unlock(&ctx->mutex);

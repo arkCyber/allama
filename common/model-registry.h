@@ -232,7 +232,9 @@ model_registry_result_t model_registry_remove(
 model_registry_result_t model_registry_copy(
     model_registry_context_t *ctx,
     const char *src_name,
-    const char *dst_name
+    const char *dst_name,
+    void (*progress_callback)(float, void *),
+    void *user_data
 );
 
 /**
@@ -357,7 +359,9 @@ model_registry_result_t model_registry_stats(
 model_registry_result_t model_registry_validate(
     model_registry_context_t *ctx,
     const char *model_name,
-    bool *is_valid
+    bool *is_valid,
+    void (*progress_callback)(float, void *),
+    void *user_data
 );
 
 /**

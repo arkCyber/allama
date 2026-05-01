@@ -580,35 +580,74 @@ static bool confirm_action(const char *action, const char *target) {
  * @brief Progress callback for model download
  */
 static void progress_callback(const char *model, float progress, void *user_data) {
-    allama_context_t *actx = (allama_context_t *)user_data;
-    if (actx->verbose) {
-        const int bar_width = 30;
-        int filled = (int)(progress * bar_width);
-        if (filled < 0) {
-            filled = 0;
-        }
-        if (filled > bar_width) {
-            filled = bar_width;
-        }
+    (void)user_data; /* Suppress unused parameter warning */
+    const int bar_width = 30;
+    int filled = (int)(progress * bar_width);
+    if (filled < 0) {
+        filled = 0;
+    }
+    if (filled > bar_width) {
+        filled = bar_width;
+    }
 
-        time_t now = time(NULL);
-        struct tm *tm_info = localtime(&now);
-        char time_buf[16] = {0};
-        if (tm_info) {
-            strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm_info);
-        } else {
-            snprintf(time_buf, sizeof(time_buf), "unknown");
-        }
+    printf("\rDownloading %s [", model);
+    for (int i = 0; i < bar_width; i++) {
+        putchar(i < filled ? '=' : ' ');
+    }
+    printf("] %6.2f%%", (double) progress * 100.0);
+    fflush(stdout);
+    if (progress >= 1.0f) {
+        printf("\n");
+    }
+}
 
-        printf("\r[%s] Downloading %s [", time_buf, model);
-        for (int i = 0; i < bar_width; i++) {
-            putchar(i < filled ? '=' : ' ');
-        }
-        printf("] %6.2f%%", (double) progress * 100.0);
-        fflush(stdout);
-        if (progress >= 1.0f) {
-            printf("\n");
-        }
+/**
+ * @brief Progress callback for model validation
+ */
+static void validate_progress_callback(float progress, void *user_data) {
+    (void)user_data; /* Suppress unused parameter warning */
+    const int bar_width = 30;
+    int filled = (int)(progress * bar_width);
+    if (filled < 0) {
+        filled = 0;
+    }
+    if (filled > bar_width) {
+        filled = bar_width;
+    }
+
+    printf("\rValidating [");
+    for (int i = 0; i < bar_width; i++) {
+        putchar(i < filled ? '=' : ' ');
+    }
+    printf("] %6.2f%%", (double) progress * 100.0);
+    fflush(stdout);
+    if (progress >= 1.0f) {
+        printf("\n");
+    }
+}
+
+/**
+ * @brief Progress callback for model copy
+ */
+static void copy_progress_callback(float progress, void *user_data) {
+    (void)user_data; /* Suppress unused parameter warning */
+    const int bar_width = 30;
+    int filled = (int)(progress * bar_width);
+    if (filled < 0) {
+        filled = 0;
+    }
+    if (filled > bar_width) {
+        filled = bar_width;
+    }
+
+    printf("\rCopying [");
+    for (int i = 0; i < bar_width; i++) {
+        putchar(i < filled ? '=' : ' ');
+    }
+    printf("] %6.2f%%", (double) progress * 100.0);
+    fflush(stdout);
+    if (progress >= 1.0f) {
+        printf("\n");
     }
 }
 
@@ -988,13 +1027,13 @@ static allama_result_t cmd_cp(allama_context_t *ctx, const char *src_name, const
 
     printf("Copying model: %s -> %s\n", src_name, dst_name);
 
-    model_registry_result_t result = model_registry_copy(ctx->registry_ctx, src_name, dst_name);
+    model_registry_result_t result = model_registry_copy(ctx->registry_ctx, src_name, dst_name, copy_progress_callback, ctx);
     if (result != MODEL_REGISTRY_SUCCESS) {
         print_error_with_suggestion("Copy", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
-    printf("✅ Successfully copied model: %s -> %s\n", src_name, dst_name);
+    printf("%s✅ Successfully copied model: %s -> %s%s\n", color_success(), src_name, dst_name, color_reset());
     return ALLAMA_SUCCESS;
 }
 
@@ -1176,8 +1215,8 @@ static allama_result_t cmd_create(allama_context_t *ctx, const char *modelfile_p
     model_registry_result_t pull_result = model_registry_pull(
         ctx->registry_ctx,
         modelfile->from,
-        NULL,  /* No progress callback for now */
-        NULL
+        progress_callback,
+        ctx
     );
     
     if (pull_result != MODEL_REGISTRY_SUCCESS) {
@@ -1446,14 +1485,14 @@ static allama_result_t cmd_validate(allama_context_t *ctx, const char *model_nam
     printf("Validating model: %s\n", model_name);
 
     bool is_valid = false;
-    model_registry_result_t result = model_registry_validate(ctx->registry_ctx, model_name, &is_valid);
+    model_registry_result_t result = model_registry_validate(ctx->registry_ctx, model_name, &is_valid, validate_progress_callback, ctx);
     if (result != MODEL_REGISTRY_SUCCESS) {
         print_error_with_suggestion("Validate", result);
         return ALLAMA_ERROR_REGISTRY;
     }
 
     if (is_valid) {
-        printf("✅ Model validation passed: %s\n", model_name);
+        printf("%s✅ Model validation passed: %s%s\n", color_success(), model_name, color_reset());
     } else {
         printf("Model is corrupted: %s\n", model_name);
         return ALLAMA_ERROR_REGISTRY;

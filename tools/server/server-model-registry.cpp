@@ -392,7 +392,7 @@ void server_model_registry_context::register_endpoints(server_http_context & htt
             }
 
             model_registry_result_t result = model_registry_copy(
-                registry_ctx, source.c_str(), destination.c_str());
+                registry_ctx, source.c_str(), destination.c_str(), NULL, NULL);
 
             if (result != MODEL_REGISTRY_SUCCESS) {
                 res->status = 400;
