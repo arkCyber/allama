@@ -320,13 +320,13 @@ model_catalog_result_t model_catalog_shutdown(model_catalog_context_t *ctx) {
         ctx->db = NULL;
     }
 
-    if (ctx->config.catalog_path && ctx->config.catalog_path != DEFAULT_CATALOG_PATH) {
+    if (ctx->config.catalog_path && strcmp(ctx->config.catalog_path, DEFAULT_CATALOG_PATH) != 0) {
         free(ctx->config.catalog_path);
     }
-    if (ctx->config.cache_path && ctx->config.cache_path != DEFAULT_CACHE_PATH) {
+    if (ctx->config.cache_path && strcmp(ctx->config.cache_path, DEFAULT_CACHE_PATH) != 0) {
         free(ctx->config.cache_path);
     }
-    if (ctx->config.remote_url && ctx->config.remote_url != DEFAULT_REMOTE_URL) {
+    if (ctx->config.remote_url && strcmp(ctx->config.remote_url, DEFAULT_REMOTE_URL) != 0) {
         free(ctx->config.remote_url);
     }
     if (ctx->remote_url) {
@@ -370,7 +370,42 @@ model_catalog_result_t model_catalog_update(model_catalog_context_t *ctx) {
     }
 
     /* Parse JSON response and update database */
-    /* TODO: Implement JSON parsing and database update */
+    /* For now, we'll use a simple placeholder implementation */
+    /* TODO: Full JSON parsing implementation with cJSON or similar library */
+    
+    /* Clear existing catalog entries */
+    const char *sql_delete = "DELETE FROM catalog";
+    char *err_msg = NULL;
+    int rc = sqlite3_exec(ctx->db, sql_delete, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        if (err_msg) {
+            sqlite3_free(err_msg);
+        }
+        free(response);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
+
+    /* Insert sample catalog entries for testing */
+    /* In production, this would parse the JSON response from Hugging Face */
+    const char *sql_insert = "INSERT INTO catalog (name, tag, digest, size, parameters, "
+                             "quantization, architecture, license, author, description, "
+                             "download_url, last_updated, is_available) VALUES "
+                             "('llama3', 'latest', 'sha256-abc123', 4700000000, 8000000000, "
+                             "'q4_0', 'llama', 'mit', 'meta', "
+                             "'Llama 3 8B model with 8K context', "
+                             "'https://huggingface.co/meta-llama/Meta-Llama-3-8B', "
+                             "1714560000, 1)";
+    
+    rc = sqlite3_exec(ctx->db, sql_insert, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        if (err_msg) {
+            sqlite3_free(err_msg);
+        }
+        free(response);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
     
     free(response);
     pthread_mutex_unlock(&ctx->mutex);
@@ -404,8 +439,94 @@ model_catalog_result_t model_catalog_search(
     pthread_mutex_lock(&ctx->mutex);
 
     /* Search database for matching entries */
-    /* TODO: Implement database search */
+    const char *sql = "SELECT name, tag, digest, size, parameters, quantization, "
+                      "architecture, license, author, description, download_url, "
+                      "last_updated, is_available FROM catalog WHERE is_available = 1 "
+                      "AND (name LIKE ? OR tag LIKE ? OR description LIKE ?) "
+                      "ORDER BY name, tag";
+    
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
 
+    /* Build search pattern with wildcards */
+    char search_pattern[512];
+    snprintf(search_pattern, sizeof(search_pattern), "%%%s%%", pattern);
+
+    /* Bind pattern to all three search columns */
+    sqlite3_bind_text(stmt, 1, search_pattern, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, search_pattern, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, search_pattern, -1, SQLITE_STATIC);
+
+    /* Count entries */
+    size_t entry_count = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        entry_count++;
+    }
+    sqlite3_reset(stmt);
+    sqlite3_bind_text(stmt, 1, search_pattern, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, search_pattern, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, search_pattern, -1, SQLITE_STATIC);
+
+    if (entry_count == 0) {
+        *entries = NULL;
+        *count = 0;
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_SUCCESS;
+    }
+
+    /* Allocate array */
+    *entries = calloc(entry_count, sizeof(model_catalog_entry_t));
+    if (!*entries) {
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_IO;
+    }
+
+    /* Fill entries */
+    size_t index = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW && index < entry_count) {
+        model_catalog_entry_t *entry = &(*entries)[index];
+        
+        entry->name = strdup((const char *)sqlite3_column_text(stmt, 0));
+        entry->tag = strdup((const char *)sqlite3_column_text(stmt, 1));
+        
+        const char *digest = (const char *)sqlite3_column_text(stmt, 2);
+        entry->digest = digest ? strdup(digest) : NULL;
+        
+        entry->size = (uint64_t)sqlite3_column_int64(stmt, 3);
+        entry->parameters = (uint32_t)sqlite3_column_int(stmt, 4);
+        
+        const char *quantization = (const char *)sqlite3_column_text(stmt, 5);
+        entry->quantization = quantization ? strdup(quantization) : NULL;
+        
+        const char *architecture = (const char *)sqlite3_column_text(stmt, 6);
+        entry->architecture = architecture ? strdup(architecture) : NULL;
+        
+        const char *license = (const char *)sqlite3_column_text(stmt, 7);
+        entry->license = license ? strdup(license) : NULL;
+        
+        const char *author = (const char *)sqlite3_column_text(stmt, 8);
+        entry->author = author ? strdup(author) : NULL;
+        
+        const char *description = (const char *)sqlite3_column_text(stmt, 9);
+        entry->description = description ? strdup(description) : NULL;
+        
+        const char *download_url = (const char *)sqlite3_column_text(stmt, 10);
+        entry->download_url = download_url ? strdup(download_url) : NULL;
+        
+        entry->last_updated = (uint64_t)sqlite3_column_int64(stmt, 11);
+        entry->is_available = sqlite3_column_int(stmt, 12) != 0;
+        
+        index++;
+    }
+
+    sqlite3_finalize(stmt);
+    *count = entry_count;
     pthread_mutex_unlock(&ctx->mutex);
 
     if (ctx->audit_enabled) {
@@ -437,8 +558,69 @@ model_catalog_result_t model_catalog_get(
     pthread_mutex_lock(&ctx->mutex);
 
     /* Query database for specific entry */
-    /* TODO: Implement database query */
+    const char *sql = "SELECT name, tag, digest, size, parameters, quantization, "
+                      "architecture, license, author, description, download_url, "
+                      "last_updated, is_available FROM catalog WHERE name = ? AND tag = ? "
+                      "AND is_available = 1 LIMIT 1";
+    
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
 
+    sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, tag, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_NOT_FOUND;
+    }
+
+    /* Allocate and fill entry */
+    *entry = calloc(1, sizeof(model_catalog_entry_t));
+    if (!*entry) {
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_IO;
+    }
+
+    model_catalog_entry_t *entry_ptr = *entry;
+    
+    entry_ptr->name = strdup((const char *)sqlite3_column_text(stmt, 0));
+    entry_ptr->tag = strdup((const char *)sqlite3_column_text(stmt, 1));
+    
+    const char *digest = (const char *)sqlite3_column_text(stmt, 2);
+    entry_ptr->digest = digest ? strdup(digest) : NULL;
+    
+    entry_ptr->size = (uint64_t)sqlite3_column_int64(stmt, 3);
+    entry_ptr->parameters = (uint32_t)sqlite3_column_int(stmt, 4);
+    
+    const char *quantization = (const char *)sqlite3_column_text(stmt, 5);
+    entry_ptr->quantization = quantization ? strdup(quantization) : NULL;
+    
+    const char *architecture = (const char *)sqlite3_column_text(stmt, 6);
+    entry_ptr->architecture = architecture ? strdup(architecture) : NULL;
+    
+    const char *license = (const char *)sqlite3_column_text(stmt, 7);
+    entry_ptr->license = license ? strdup(license) : NULL;
+    
+    const char *author = (const char *)sqlite3_column_text(stmt, 8);
+    entry_ptr->author = author ? strdup(author) : NULL;
+    
+    const char *description = (const char *)sqlite3_column_text(stmt, 9);
+    entry_ptr->description = description ? strdup(description) : NULL;
+    
+    const char *download_url = (const char *)sqlite3_column_text(stmt, 10);
+    entry_ptr->download_url = download_url ? strdup(download_url) : NULL;
+    
+    entry_ptr->last_updated = (uint64_t)sqlite3_column_int64(stmt, 11);
+    entry_ptr->is_available = sqlite3_column_int(stmt, 12) != 0;
+
+    sqlite3_finalize(stmt);
     pthread_mutex_unlock(&ctx->mutex);
 
     if (ctx->audit_enabled) {
@@ -470,8 +652,81 @@ model_catalog_result_t model_catalog_list(
     pthread_mutex_lock(&ctx->mutex);
 
     /* Query all entries from database */
-    /* TODO: Implement database query */
+    const char *sql = "SELECT name, tag, digest, size, parameters, quantization, "
+                      "architecture, license, author, description, download_url, "
+                      "last_updated, is_available FROM catalog WHERE is_available = 1 "
+                      "ORDER BY name, tag";
+    
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
 
+    /* Count entries */
+    size_t entry_count = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        entry_count++;
+    }
+    sqlite3_reset(stmt);
+
+    if (entry_count == 0) {
+        *entries = NULL;
+        *count = 0;
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_SUCCESS;
+    }
+
+    /* Allocate array */
+    *entries = calloc(entry_count, sizeof(model_catalog_entry_t));
+    if (!*entries) {
+        sqlite3_finalize(stmt);
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_IO;
+    }
+
+    /* Fill entries */
+    size_t index = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW && index < entry_count) {
+        model_catalog_entry_t *entry = &(*entries)[index];
+        
+        entry->name = strdup((const char *)sqlite3_column_text(stmt, 0));
+        entry->tag = strdup((const char *)sqlite3_column_text(stmt, 1));
+        
+        const char *digest = (const char *)sqlite3_column_text(stmt, 2);
+        entry->digest = digest ? strdup(digest) : NULL;
+        
+        entry->size = (uint64_t)sqlite3_column_int64(stmt, 3);
+        entry->parameters = (uint32_t)sqlite3_column_int(stmt, 4);
+        
+        const char *quantization = (const char *)sqlite3_column_text(stmt, 5);
+        entry->quantization = quantization ? strdup(quantization) : NULL;
+        
+        const char *architecture = (const char *)sqlite3_column_text(stmt, 6);
+        entry->architecture = architecture ? strdup(architecture) : NULL;
+        
+        const char *license = (const char *)sqlite3_column_text(stmt, 7);
+        entry->license = license ? strdup(license) : NULL;
+        
+        const char *author = (const char *)sqlite3_column_text(stmt, 8);
+        entry->author = author ? strdup(author) : NULL;
+        
+        const char *description = (const char *)sqlite3_column_text(stmt, 9);
+        entry->description = description ? strdup(description) : NULL;
+        
+        const char *download_url = (const char *)sqlite3_column_text(stmt, 10);
+        entry->download_url = download_url ? strdup(download_url) : NULL;
+        
+        entry->last_updated = (uint64_t)sqlite3_column_int64(stmt, 11);
+        entry->is_available = sqlite3_column_int(stmt, 12) != 0;
+        
+        index++;
+    }
+
+    sqlite3_finalize(stmt);
+    *count = entry_count;
     pthread_mutex_unlock(&ctx->mutex);
 
     if (ctx->audit_enabled) {
@@ -503,7 +758,57 @@ model_catalog_result_t model_catalog_stats(
     pthread_mutex_lock(&ctx->mutex);
 
     /* Query database for statistics */
-    /* TODO: Implement database query */
+    const char *sql_count = "SELECT COUNT(*) FROM catalog WHERE is_available = 1";
+    const char *sql_size = "SELECT COALESCE(SUM(size), 0) FROM catalog WHERE is_available = 1";
+    const char *sql_updated = "SELECT MAX(last_updated) FROM catalog WHERE is_available = 1";
+    
+    sqlite3_stmt *stmt;
+    int rc;
+
+    /* Get total entries */
+    rc = sqlite3_prepare_v2(ctx->db, sql_count, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
+    
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        *total_entries = (size_t)sqlite3_column_int64(stmt, 0);
+    } else {
+        *total_entries = 0;
+    }
+    sqlite3_finalize(stmt);
+
+    /* Get total size */
+    rc = sqlite3_prepare_v2(ctx->db, sql_size, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
+    
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        *total_size = (uint64_t)sqlite3_column_int64(stmt, 0);
+    } else {
+        *total_size = 0;
+    }
+    sqlite3_finalize(stmt);
+
+    /* Get last updated timestamp */
+    rc = sqlite3_prepare_v2(ctx->db, sql_updated, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        pthread_mutex_unlock(&ctx->mutex);
+        return MODEL_CATALOG_ERROR_DATABASE;
+    }
+    
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        *last_updated = (uint64_t)sqlite3_column_int64(stmt, 0);
+    } else {
+        *last_updated = 0;
+    }
+    sqlite3_finalize(stmt);
 
     pthread_mutex_unlock(&ctx->mutex);
 
@@ -528,7 +833,7 @@ void model_catalog_entry_free(model_catalog_entry_t *entry) {
     if (entry->description) free(entry->description);
     if (entry->download_url) free(entry->download_url);
     
-    free(entry);
+    /* Note: Don't free the entry struct itself, it's part of an array */
 }
 
 /**
@@ -560,6 +865,7 @@ const char *model_catalog_result_to_string(model_catalog_result_t result) {
         case MODEL_CATALOG_ERROR_CORRUPTED: return "corrupted";
         case MODEL_CATALOG_ERROR_VALIDATION: return "validation error";
         case MODEL_CATALOG_ERROR_LOCKED: return "locked";
+        case MODEL_CATALOG_ERROR_NOT_FOUND: return "not found";
         default: return "unknown error";
     }
 }
