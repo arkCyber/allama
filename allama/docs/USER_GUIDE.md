@@ -4,13 +4,14 @@
 
 1. [快速开始](#快速开始)
 2. [安装指南](#安装指南)
-3. [CLI命令参考](#cli命令参考)
-4. [认证系统应用案例](#认证系统应用案例)
-5. [计费系统应用案例](#计费系统应用案例)
-6. [OpenAI兼容API应用案例](#openai兼容api应用案例)
-7. [高级功能应用案例](#高级功能应用案例)
-8. [故障排除](#故障排除)
-9. [常见问题FAQ](#常见问题faq)
+3. [Ollama迁移指南](#ollama迁移指南)
+4. [CLI命令参考](#cli命令参考)
+5. [认证系统应用案例](#认证系统应用案例)
+6. [计费系统应用案例](#计费系统应用案例)
+7. [OpenAI兼容API应用案例](#openai兼容api应用案例)
+8. [高级功能应用案例](#高级功能应用案例)
+9. [故障排除](#故障排除)
+10. [常见问题FAQ](#常见问题faq)
 
 ---
 
@@ -20,11 +21,34 @@
 
 Allama是一个航空级安全的LLM推理服务器，支持用户认证、计费和OpenAI兼容API。本指南将帮助您在5分钟内快速体验Allama的核心功能，包括服务器启动、API调用、认证测试和使用统计查看。
 
+**与Ollama的兼容性：**
+
+Allama在设计上与Ollama保持完全兼容，这意味着：
+
+- **命令行接口一致**：所有Ollama的命令在Allama中都可以直接使用，无需学习新的命令语法
+- **API端点兼容**：Allama提供了与Ollama完全相同的API端点，包括`/api/generate`、`/api/chat`、`/api/embed`等
+- **模型格式兼容**：Allama使用与Ollama相同的模型格式，可以直接使用Ollama的模型库
+- **配置文件兼容**：Modelfile等配置文件格式完全兼容
+- **环境变量兼容**：支持相同的环境变量，如`OLLAMA_HOST`、`OLLAMA_NUM_PARALLEL`等
+- **无缝迁移**：如果您已经熟悉Ollama，可以立即开始使用Allama，无需任何学习成本
+
+**Allama相比Ollama的增强功能：**
+
+虽然Allama与Ollama保持兼容，但还增加了企业级功能：
+
+- **用户认证系统**：支持API Key认证，适合多用户环境
+- **计费和使用追踪**：精确的token计数和详细的计费记录
+- **速率限制和配额管理**：可以为不同用户设置不同的速率限制和月度配额
+- **航空级安全**：代码签名验证、审计日志、完整性保护
+- **故障容错**：超时保护、重试机制、优雅降级
+- **异常检测**：资源监控、阈值检测、统计分析和告警
+
 **前提条件：**
 - 已安装Rust 1.70或更高版本
 - 至少8GB可用内存
 - 网络连接（用于下载模型）
 - 终端或命令行访问权限
+- 如果您已经熟悉Ollama，可以跳过基础知识，直接使用Allama的增强功能
 
 **步骤1：编译项目**
 
@@ -556,9 +580,500 @@ rm -rf ~/.rustup/
 
 ---
 
+## Ollama迁移指南
+
+如果您已经熟悉Ollama或正在使用Ollama，迁移到Allama非常简单。Allama在设计上与Ollama保持完全兼容，这意味着您可以无缝迁移，无需学习新的命令或修改现有代码。
+
+### 为什么选择Allama？
+
+**Ollama的优势：**
+- 简单易用，适合个人开发者
+- 轻量级，资源占用低
+- 社区活跃，模型丰富
+- 快速迭代，功能更新快
+
+**Allama的增强：**
+- **企业级认证**：支持多用户环境，API Key管理
+- **精确计费**：token级别的使用追踪和成本分析
+- **配额管理**：灵活的速率限制和月度配额设置
+- **航空级安全**：代码签名、审计日志、完整性保护
+- **故障容错**：超时保护、重试机制、优雅降级
+- **异常检测**：资源监控、阈值检测、自动告警
+- **完全兼容**：与Ollama命令、API、模型格式100%兼容
+
+### 迁移场景
+
+**场景1：个人开发者**
+
+如果您是个人开发者，主要在本地使用：
+
+```bash
+# Ollama的使用方式
+ollama serve
+ollama run llama3
+
+# Allama的使用方式（完全相同）
+allama serve
+allama run llama3
+```
+
+**迁移步骤：**
+1. 编译安装Allama（参考安装指南）
+2. 将`ollama`命令替换为`allama`命令
+3. 所有脚本和配置无需修改
+4. 可以选择性地启用认证和计费功能
+
+**场景2：团队协作**
+
+如果您需要为团队提供共享的LLM服务：
+
+```bash
+# Ollama：无法区分用户，难以管理
+ollama serve --host 0.0.0.0
+
+# Allama：可以为每个团队成员创建独立账号
+allama serve --host 0.0.0.0
+curl -X POST http://localhost:11435/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","email":"alice@team.com","rate_limit":60,"monthly_quota":1000000}'
+```
+
+**迁移步骤：**
+1. 安装Allama并启动服务器
+2. 为团队成员创建用户账号
+3. 分配不同的API Key和配额
+4. 监控使用情况，优化资源分配
+
+**场景3：生产环境**
+
+如果您需要在生产环境中部署LLM服务：
+
+```bash
+# Ollama：缺乏认证和计费，不适合生产
+ollama serve --host 0.0.0.0
+
+# Allama：完整的认证、计费、监控
+allama serve --host 0.0.0.0 --parallel 4
+```
+
+**迁移步骤：**
+1. 使用Allama的systemd服务管理
+2. 配置反向代理（Nginx）
+3. 启用HTTPS加密
+4. 创建生产用户账号
+5. 设置监控和告警
+6. 定期备份认证和计费数据库
+
+### 命令迁移对照表
+
+**基础命令：**
+
+| Ollama命令 | Allama命令 | 差异 | 说明 |
+|-----------|-----------|------|------|
+| `ollama serve` | `allama serve` | 无 | 完全相同，参数兼容 |
+| `ollama list` | `allama list` | 无 | 完全相同 |
+| `ollama ls` | `allama ls` | 无 | 完全相同 |
+| `ollama pull llama3` | `allama pull llama3` | 无 | 完全相同 |
+| `ollama run llama3` | `allama run llama3` | 无 | 完全相同 |
+| `ollama show llama3` | `allama show llama3` | 无 | 完全相同 |
+| `ollama rm llama3` | `allama rm llama3` | 无 | 完全相同 |
+| `ollama ps` | `allama ps` | 无 | 完全相同 |
+
+**高级命令：**
+
+| Ollama命令 | Allama命令 | 差异 | 说明 |
+|-----------|-----------|------|------|
+| `ollama create my-model` | `allama create my-model` | 无 | 完全相同 |
+| `ollama cp llama3 my-llama3` | `allama cp llama3 my-llama3` | 无 | 完全相同 |
+| `ollama push my-model` | `allama push my-model` | 无 | 完全相同 |
+| `ollama stop llama3` | `allama stop llama3` | 无 | 完全相同 |
+| `ollama launch` | `allama launch` | 无 | 完全相同 |
+| `ollama signin` | `allama signin` | 无 | 完全相同 |
+| `ollama signout` | `allama signout` | 无 | 完全相同 |
+| `ollama version` | `allama version` | 无 | 完全相同 |
+
+**Allama特有命令：**
+
+| Allama命令 | 说明 | Ollama对应 |
+|-----------|------|-----------|
+| `allama install` | 安装系统服务 | 无 |
+| `allama uninstall` | 卸载系统服务 | 无 |
+| `allama start` | 启动后台服务 | 无 |
+| `allama stop` | 停止后台服务 | 无（与ollama stop <model>不同） |
+| `allama status` | 检查服务状态 | 无 |
+| `allama update` | 更新版本 | 无 |
+
+### API迁移对照表
+
+**Ollama API端点 → Allama API端点：**
+
+| Ollama端点 | Allama端点 | 认证要求 | 差异 |
+|-----------|-----------|---------|------|
+| `GET /api/tags` | `GET /api/tags` | 本地无需 | 完全相同 |
+| `POST /api/generate` | `POST /api/generate` | 远程需要 | 完全相同 |
+| `POST /api/chat` | `POST /api/chat` | 远程需要 | 完全相同 |
+| `POST /api/embed` | `POST /api/embed` | 远程需要 | 完全相同 |
+| `GET /api/ps` | `GET /api/ps` | 本地无需 | 完全相同 |
+| `POST /api/show` | `POST /api/show` | 远程需要 | 完全相同 |
+| `DELETE /api/delete` | `DELETE /api/delete` | 远程需要 | 完全相同 |
+| `POST /api/pull` | `POST /api/pull` | 远程需要 | 完全相同 |
+| `POST /api/push` | `POST /api/push` | 远程需要 | 完全相同 |
+| `POST /api/create` | `POST /api/create` | 远程需要 | 完全相同 |
+| `POST /api/copy` | `POST /api/copy` | 远程需要 | 完全相同 |
+| `POST /api/stop` | `POST /api/stop` | 远程需要 | 完全相同 |
+
+**Allama新增API端点：**
+
+| Allama端点 | 说明 | Ollama对应 |
+|-----------|------|-----------|
+| `POST /api/users` | 创建用户 | 无 |
+| `GET /api/users` | 列出用户 | 无 |
+| `GET /api/billing/records` | 获取计费记录 | 无 |
+| `GET /api/billing/summary` | 获取计费摘要 | 无 |
+| `GET /api/billing/stats/:model` | 获取模型统计 | 无 |
+
+### 模型迁移
+
+**模型文件位置：**
+
+- **Ollama**: `~/.ollama/models/`
+- **Allama**: `~/.allama/models/`
+
+**迁移方法：**
+
+```bash
+# 方法1：直接复制模型文件
+cp -r ~/.ollama/models/* ~/.allama/models/
+
+# 方法2：重新下载（推荐，确保兼容性）
+allama pull llama3
+allama pull mistral
+# ... 其他模型
+
+# 验证模型
+allama list
+```
+
+**模型格式兼容性：**
+
+- Allama使用与Ollama完全相同的模型格式
+- GGUF格式模型完全兼容
+- 量化参数完全兼容
+- Modelfile配置完全兼容
+
+### 配置文件迁移
+
+**Modelfile兼容性：**
+
+Allama完全支持Ollama的Modelfile格式，无需修改：
+
+```dockerfile
+# Modelfile示例（Ollama和Allama都支持）
+FROM llama3
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+SYSTEM You are a helpful assistant.
+```
+
+**环境变量迁移：**
+
+| Ollama环境变量 | Allama环境变量 | 兼容性 |
+|---------------|---------------|--------|
+| `OLLAMA_HOST` | `OLLAMA_HOST` | ✅ 完全兼容 |
+| `OLLAMA_NUM_PARALLEL` | `OLLAMA_NUM_PARALLEL` | ✅ 完全兼容 |
+| `OLLAMA_MAX_LOADED_MODELS` | `OLLAMA_MAX_LOADED_MODELS` | ✅ 完全兼容 |
+| `OLLAMA_MAX_QUEUE` | `OLLAMA_MAX_QUEUE` | ✅ 完全兼容 |
+| `ALLAMA_API_KEY` | `ALLAMA_API_KEY` | ❌ Allama特有 |
+| `RUST_LOG` | `RUST_LOG` | ❌ Allama特有 |
+
+### 客户端代码迁移
+
+**Python客户端迁移：**
+
+```python
+# Ollama客户端
+import ollama
+response = ollama.generate(model='llama3', prompt='Hello')
+
+# Allama客户端（使用相同的API）
+import ollama
+# 只需更改base_url
+response = ollama.generate(
+    model='llama3', 
+    prompt='Hello',
+    host='http://localhost:11435'  # 如果端口不同
+)
+
+# 或者使用Allama的认证功能
+import requests
+response = requests.post(
+    'http://localhost:11435/api/generate',
+    headers={
+        'Authorization': 'Bearer your_api_key',
+        'Content-Type': 'application/json'
+    },
+    json={'model': 'llama3', 'prompt': 'Hello'}
+)
+```
+
+**JavaScript客户端迁移：**
+
+```javascript
+// Ollama客户端
+import ollama from 'ollama';
+const response = await ollama.generate({ model: 'llama3', prompt: 'Hello' });
+
+// Allama客户端（使用相同的API）
+import ollama from 'ollama';
+const response = await ollama.generate({
+    model: 'llama3', 
+    prompt: 'Hello',
+    host: 'http://localhost:11435'  // 如果端口不同
+});
+
+// 或者使用Allama的认证功能
+const response = await fetch('http://localhost:11435/api/generate', {
+    method: 'POST',
+    headers: {
+        'Authorization': 'Bearer your_api_key',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ model: 'llama3', prompt: 'Hello' })
+});
+```
+
+### 渐进式迁移策略
+
+**阶段1：并行运行（1-2周）**
+
+```bash
+# 同时运行Ollama和Allama
+ollama serve --port 11434 &
+allama serve --port 11435 &
+
+# 测试Allama的兼容性
+curl http://localhost:11435/api/tags
+curl http://localhost:11434/api/tags
+
+# 对比结果
+diff <(curl http://localhost:11435/api/tags) <(curl http://localhost:11434/api/tags)
+```
+
+**阶段2：功能验证（1周）**
+
+```bash
+# 验证所有常用命令
+allama list
+allama pull llama3
+allama run llama3 --prompt "test"
+allama show llama3
+
+# 验证API兼容性
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3","prompt":"test","stream":false}'
+```
+
+**阶段3：启用认证（1周）**
+
+```bash
+# 创建测试用户
+curl -X POST http://localhost:11435/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","email":"test@example.com","rate_limit":60,"monthly_quota":100000}'
+
+# 测试认证
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test_api_key" \
+  -H "X-Forwarded-For: 192.168.1.100" \
+  -d '{"model":"llama3","prompt":"test","stream":false}'
+```
+
+**阶段4：启用计费（1周）**
+
+```bash
+# 查看计费记录
+curl -X GET "http://localhost:11435/api/billing/records?limit=10" \
+  -H "Authorization: Bearer test_api_key" \
+  -H "X-Forwarded-For: 127.0.0.1"
+
+# 查看计费摘要
+curl -X GET http://localhost:11435/api/billing/summary \
+  -H "Authorization: Bearer test_api_key" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**阶段5：完全迁移（1周）**
+
+```bash
+# 停止Ollama
+pkill ollama
+
+# 切换到Allama
+allama serve --port 11434  # 使用Ollama的默认端口
+
+# 更新所有脚本和配置
+# 将 ollama 替换为 allama
+```
+
+### 迁移检查清单
+
+**迁移前：**
+- [ ] 备份Ollama模型文件
+- [ ] 备份Ollama配置文件
+- [ ] 记录当前Ollama版本和配置
+- [ ] 准备Allama安装环境
+- [ ] 制定迁移计划和时间表
+
+**迁移中：**
+- [ ] 安装Allama
+- [ ] 复制或重新下载模型
+- [ ] 验证命令兼容性
+- [ ] 验证API兼容性
+- [ ] 测试常用功能
+- [ ] 验证性能表现
+
+**迁移后：**
+- [ ] 停止Ollama服务
+- [ ] 切换到Allama
+- [ ] 更新所有脚本和配置
+- [ ] 创建用户账号（如需要）
+- [ ] 启用认证（如需要）
+- [ ] 启用计费（如需要）
+- [ ] 监控系统运行
+- [ ] 培训团队成员
+
+### 常见迁移问题
+
+**问题1：模型文件不兼容**
+
+**解决方案：**
+```bash
+# 重新下载模型
+allama pull llama3
+
+# 或者检查模型格式
+file ~/.allama/models/llama3/*
+```
+
+**问题2：API端点返回401**
+
+**解决方案：**
+```bash
+# 本地请求添加IP头部
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{"model":"llama3","prompt":"test","stream":false}'
+
+# 或使用API Key
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_api_key" \
+  -H "X-Forwarded-For: 192.168.1.100" \
+  -d '{"model":"llama3","prompt":"test","stream":false}'
+```
+
+**问题3：性能不如Ollama**
+
+**解决方案：**
+```bash
+# 增加并行处理数
+allama serve --parallel 4
+
+# 增加最大加载模型数
+allama serve --max-loaded-models 5
+
+# 检查系统资源
+allama status
+```
+
+**问题4：配置文件不兼容**
+
+**解决方案：**
+```bash
+# 检查Modelfile格式
+# Allama完全支持Ollama的Modelfile格式
+# 如果有自定义格式，需要转换为标准格式
+
+# 检查环境变量
+env | grep OLLAMA
+env | grep ALLAMA
+```
+
+### 迁移最佳实践
+
+1. **备份优先**：迁移前务必备份所有数据和配置
+2. **渐进式迁移**：不要一次性迁移，分阶段进行
+3. **充分测试**：在每个阶段都进行充分测试
+4. **监控性能**：密切关注系统性能和资源使用
+5. **文档记录**：记录迁移过程中的所有问题和解决方案
+6. **团队培训**：确保团队成员了解Allama的新功能
+7. **回滚计划**：准备回滚方案，以防迁移失败
+
+### 迁移时间估算
+
+| 迁移场景 | 预计时间 | 说明 |
+|---------|---------|------|
+| 个人开发者 | 30分钟 | 安装+验证 |
+| 小型团队（<10人） | 2-3天 | 安装+配置+培训 |
+| 中型团队（10-50人） | 1-2周 | 安装+配置+培训+测试 |
+| 大型团队（>50人） | 2-4周 | 安装+配置+培训+测试+监控 |
+
+---
+
 ## CLI命令参考
 
-Allama提供了一套完整的命令行接口，与Ollama保持一致，同时增加了企业级功能。所有命令都支持`--help`参数查看详细帮助信息。
+Allama提供了一套完整的命令行接口，与Ollama保持完全一致，同时增加了企业级功能。所有命令都支持`--help`参数查看详细帮助信息。
+
+### Ollama兼容性说明
+
+**完全兼容的命令：**
+
+Allama与Ollama的命令行接口完全兼容，以下命令在两个系统中的用法完全相同：
+
+| Allama命令 | Ollama命令 | 兼容性 | 说明 |
+|-----------|-----------|--------|------|
+| `allama serve` | `ollama serve` | ✅ 100% | 启动服务器，参数完全相同 |
+| `allama list` / `allama ls` | `ollama list` / `ollama ls` | ✅ 100% | 列出模型 |
+| `allama pull` | `ollama pull` | ✅ 100% | 下载模型 |
+| `allama run` | `ollama run` | ✅ 100% | 运行模型 |
+| `allama show` | `ollama show` | ✅ 100% | 显示模型信息 |
+| `allama rm` | `ollama rm` | ✅ 100% | 删除模型 |
+| `allama ps` | `ollama ps` | ✅ 100% | 列出运行中的模型 |
+| `allama create` | `ollama create` | ✅ 100% | 创建自定义模型 |
+| `allama cp` | `ollama cp` | ✅ 100% | 复制模型 |
+| `allama push` | `ollama push` | ✅ 100% | 推送模型 |
+| `allama stop <model>` | `ollama stop <model>` | ✅ 100% | 停止运行中的模型 |
+| `allama launch` | `ollama launch` | ✅ 100% | 启动集成 |
+| `allama signin` | `ollama signin` | ✅ 100% | 登录账户 |
+| `allama signout` | `ollama signout` | ✅ 100% | 登出账户 |
+| `allama version` | `ollama version` | ✅ 100% | 显示版本信息 |
+
+**Allama特有的命令：**
+
+以下命令是Allama独有的，用于企业级功能管理：
+
+| Allama命令 | 说明 | Ollama对应 |
+|-----------|------|-----------|
+| `allama install` | 安装Allama系统服务 | 无对应 |
+| `allama uninstall` | 卸载Allama系统服务 | 无对应 |
+| `allama start` | 启动Allama后台服务 | 无对应 |
+| `allama stop` | 停止Allama后台服务 | 无对应 |
+| `allama status` | 检查Allama服务状态 | 无对应 |
+| `allama update` | 更新Allama到最新版本 | 无对应 |
+
+**迁移建议：**
+
+如果您正在从Ollama迁移到Allama：
+
+1. **无需修改命令**：所有Ollama命令都可以直接在Allama中使用
+2. **模型文件兼容**：可以直接使用已有的Ollama模型，无需重新下载
+3. **配置文件兼容**：Modelfile等配置文件可以直接使用
+4. **环境变量兼容**：可以继续使用相同的环境变量
+5. **API兼容**：客户端代码无需修改，只需更改端点地址
+6. **渐进式迁移**：可以先使用基础功能，再逐步启用认证和计费功能
 
 ### 服务管理命令
 
@@ -1168,6 +1683,43 @@ export RUST_LOG=debug
 
 ## 认证系统应用案例
 
+### Ollama与Allama在认证方面的对比
+
+**Ollama的认证方式：**
+- Ollama本身不提供用户认证系统
+- 依赖反向代理（如Nginx）进行基本的IP限制
+- 无法区分不同用户的使用情况
+- 无法实现精细的权限控制
+- 适合个人使用或受信任的局域网环境
+
+**Allama的认证方式：**
+- 内置完整的用户认证系统
+- 支持API Key认证
+- 可以为每个用户设置独立的速率限制和配额
+- 支持用户创建、列表、管理
+- 适合团队协作和生产环境
+
+**从Ollama迁移到Allama认证系统：**
+
+如果您正在使用Ollama并通过反向代理进行基本的访问控制，迁移到Allama的认证系统可以提供更精细的控制：
+
+```bash
+# Ollama方式：通过Nginx限制IP
+# nginx.conf
+location /api/ {
+    allow 192.168.1.0/24;
+    deny all;
+    proxy_pass http://localhost:11434;
+}
+
+# Allama方式：通过API Key认证
+# 无需修改Nginx配置，直接使用Allama的认证
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer user_api_key" \
+  -d '{"model":"llama3","prompt":"test"}'
+```
+
 ### 案例1：创建企业用户账号
 
 **场景**：企业需要为不同部门创建独立的API访问账号，每个部门有不同的配额限制。
@@ -1427,6 +1979,46 @@ print(f"Tenant usage: {usage}")
 ---
 
 ## 计费系统应用案例
+
+### Ollama与Allama在计费方面的对比
+
+**Ollama的计费方式：**
+- Ollama本身不提供计费功能
+- 无法追踪API使用情况
+- 无法统计token消耗
+- 无法进行成本分析
+- 适合个人使用或免费场景
+
+**Allama的计费方式：**
+- 内置完整的计费系统
+- 精确的token计数（prompt + completion）
+- 详细的请求记录（时间戳、用户信息、模型信息）
+- 支持按时间范围查询
+- 提供统计汇总功能
+- 可用于成本分析和资源规划
+
+**从Ollama迁移到Allama计费系统：**
+
+如果您正在使用Ollama但需要了解使用情况和成本，迁移到Allama可以获得完整的计费功能：
+
+```bash
+# Ollama方式：无法获取使用统计
+# 只能通过日志文件粗略估计
+grep "POST /api/generate" ~/.ollama/logs/server.log | wc -l
+
+# Allama方式：精确的计费统计
+curl -X GET http://localhost:11435/api/billing/summary \
+  -H "Authorization: Bearer your_api_key" \
+  -H "X-Forwarded-For: 127.0.0.1"
+
+# 返回详细的token统计
+{
+  "total_tokens": 1500000,
+  "total_requests": 5000,
+  "monthly_quota": 10000000,
+  "quota_usage": "15%"
+}
+```
 
 ### 案例5：实时监控API使用量
 
@@ -1737,6 +2329,39 @@ if __name__ == "__main__":
 
 ## OpenAI兼容API应用案例
 
+### Ollama与Allama在OpenAI兼容性方面的对比
+
+**Ollama的OpenAI兼容性：**
+- Ollama提供OpenAI兼容的API端点（/v1/chat/completions, /v1/completions, /v1/embeddings）
+- 支持OpenAI SDK的基本功能
+- 可以作为OpenAI的替代品使用
+- 适合需要OpenAI兼容性的应用
+
+**Allama的OpenAI兼容性：**
+- 完全兼容Ollama的OpenAI兼容API
+- 端点路径和参数格式完全相同
+- 支持OpenAI SDK的所有功能
+- 额外支持认证和计费
+- 可以无缝从Ollama迁移
+
+**从Ollama迁移到Allama的OpenAI兼容API：**
+
+如果您正在使用Ollama的OpenAI兼容API，迁移到Allama非常简单：
+
+```python
+# Ollama方式
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+response = client.chat.completions.create(model="llama3", messages=[...])
+
+# Allama方式（完全相同）
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:11435/v1", api_key="your_allama_key")
+response = client.chat.completions.create(model="llama3", messages=[...])
+
+# 唯一的区别：Allama的API Key可以用于认证和计费
+```
+
 ### 案例8：使用OpenAI Python SDK
 
 **场景**：现有使用OpenAI SDK的应用可以无缝切换到Allama，无需修改代码。
@@ -1906,6 +2531,55 @@ if __name__ == "__main__":
 ---
 
 ## 高级功能应用案例
+
+### Ollama与Allama在高级功能方面的对比
+
+**Ollama的高级功能：**
+- 支持流式响应
+- 支持批量处理（通过并发请求）
+- 基本的错误处理
+- 适合个人使用和小型团队
+
+**Allama的高级功能：**
+- 完全兼容Ollama的所有高级功能
+- 增强的错误处理和重试机制
+- 航空级故障容错
+- 异常检测和自动告警
+- 审计日志和完整性保护
+- 适合企业级应用
+
+**从Ollama迁移到Allama的高级功能：**
+
+如果您正在使用Ollama的高级功能，迁移到Allama可以获得更强的容错能力和监控：
+
+```python
+# Ollama方式：基本的流式响应
+import ollama
+for chunk in ollama.generate(model='llama3', prompt='test', stream=True):
+    print(chunk['response'], end='', flush=True)
+
+# Allama方式：相同的流式响应，但增加了故障容错
+import requests
+try:
+    response = requests.post(
+        'http://localhost:11435/api/generate',
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer your_api_key'
+        },
+        json={'model': 'llama3', 'prompt': 'test', 'stream': True},
+        stream=True,
+        timeout=30  # 超时保护
+    )
+    for line in response.iter_lines():
+        if line:
+            chunk = json.loads(line)
+            print(chunk['response'], end='', flush=True)
+except requests.exceptions.Timeout:
+    print("请求超时，自动重试...")
+except requests.exceptions.RequestException as e:
+    print(f"请求失败: {e}")
+```
 
 ### 案例11：流式响应处理
 
