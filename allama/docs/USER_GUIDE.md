@@ -5,14 +5,15 @@
 1. [快速开始](#快速开始)
 2. [远程免费测试账号使用指南](#远程免费测试账号使用指南)
 3. [安装指南](#安装指南)
-4. [Ollama迁移指南](#ollama迁移指南)
-5. [CLI命令参考](#cli命令参考)
-6. [认证系统应用案例](#认证系统应用案例)
-7. [计费系统应用案例](#计费系统应用案例)
-8. [OpenAI兼容API应用案例](#openai兼容api应用案例)
-9. [高级功能应用案例](#高级功能应用案例)
-10. [故障排除](#故障排除)
-11. [常见问题FAQ](#常见问题faq)
+4. [模型兼容性指南](#模型兼容性指南)
+5. [Ollama迁移指南](#ollama迁移指南)
+6. [CLI命令参考](#cli命令参考)
+7. [认证系统应用案例](#认证系统应用案例)
+8. [计费系统应用案例](#计费系统应用案例)
+9. [OpenAI兼容API应用案例](#openai兼容api应用案例)
+10. [高级功能应用案例](#高级功能应用案例)
+11. [故障排除](#故障排除)
+12. [常见问题FAQ](#常见问题faq)
 
 ---
 
@@ -743,6 +744,329 @@ rm -rf ~/.rustup/
 - 删除数据文件会丢失所有下载的模型和配置，请谨慎操作
 - 建议在卸载前备份重要数据
 - 如果计划重新安装，可以保留数据目录
+
+---
+
+## 模型兼容性指南
+
+Allama基于llama.cpp构建，完全兼容llama.cpp的GGUF模型格式。这意味着您可以使用llama.cpp生态系统中的所有模型，无需任何转换或修改。
+
+### GGUF模型格式
+
+**什么是GGUF？**
+
+GGUF（GPT-Generated Unified Format）是llama.cpp团队开发的一种高效的模型文件格式，专为大语言模型推理优化。它具有以下特点：
+
+- **高效存储**: 使用量化技术大幅减少模型大小
+- **快速加载**: 优化的文件结构，加载速度快
+- **跨平台**: 支持多种硬件架构（x86_64, ARM64, Apple Silicon等）
+- **灵活量化**: 支持多种量化级别（Q4_0, Q4_K_M, Q5_K_M, Q8_0, F16等）
+- **元数据丰富**: 包含模型架构、参数、词汇表等完整信息
+
+**GGUF vs 其他格式：**
+
+| 格式 | 特点 | 文件大小 | 推理速度 | 兼容性 |
+|------|------|---------|---------|--------|
+| GGUF | 量化优化，元数据丰富 | 小 | 快 | llama.cpp, Allama |
+| GGML | 早期格式，已废弃 | 中 | 中 | llama.cpp（旧版） |
+| HF Transformers | Hugging Face格式 | 大 | 慢 | PyTorch, TensorFlow |
+| SafeTensors | 安全的HF格式 | 大 | 慢 | PyTorch |
+
+### Allama支持的模型
+
+**支持的模型架构：**
+
+Allama基于llama.cpp，支持llama.cpp支持的所有模型架构：
+
+- **LLaMA系列**: LLaMA, LLaMA 2, LLaMA 3, LLaMA 3.1, LLaMA 3.2
+- **Mistral系列**: Mistral 7B, Mixtral 8x7B, Mixtral 8x22B
+- **Qwen系列**: Qwen, Qwen 1.5, Qwen 2, Qwen 2.5
+- **Gemma系列**: Gemma, Gemma 2
+- **Phi系列**: Phi-2, Phi-3
+- **Yi系列**: Yi, Yi 1.5
+- **DeepSeek系列**: DeepSeek, DeepSeek Coder
+- **Falcon系列**: Falcon 7B, Falcon 40B
+- **其他**: StarCoder, CodeLlama, Vicuna, Alpaca等
+
+**支持的量化级别：**
+
+| 量化级别 | 说明 | 大小比例 | 精度 | 推荐场景 |
+|---------|------|---------|------|---------|
+| F32 | 32位浮点 | 100% | 最高 | 精度要求极高的场景 |
+| F16 | 16位浮点 | 50% | 高 | 平衡精度和性能 |
+| Q8_0 | 8位量化 | 25% | 中高 | 高精度需求 |
+| Q6_K | 6位量化 | 20% | 中 | 平衡精度和大小 |
+| Q5_K_M | 5位量化 | 17% | 中低 | 推荐的通用量化 |
+| Q4_K_M | 4位量化 | 13% | 中低 | 最常用的量化 |
+| Q4_0 | 4位量化 | 13% | 低 | 兼容性最好 |
+| Q3_K_M | 3位量化 | 10% | 低 | 极限压缩 |
+| Q2_K | 2位量化 | 7% | 极低 | 仅用于测试 |
+
+**推荐的量化级别：**
+- **最佳平衡**: Q5_K_M 或 Q4_K_M
+- **最佳性能**: Q4_K_M
+- **最佳精度**: Q8_0 或 F16
+- **极限压缩**: Q3_K_M
+
+### 获取GGUF模型
+
+**方法1：使用llama.cpp官方模型库**
+
+llama.cpp官方维护了一个GGUF模型库，包含大量预转换的模型：
+
+```bash
+# 从llama.cpp官方模型库下载
+# 访问：https://huggingface.co/TheBloke
+
+# 示例：下载LLaMA 3 8B Q4_K_M模型
+wget https://huggingface.co/TheBloke/Llama-3-8B-GGUF/resolve/main/llama-3-8b-q4_k_m.gguf
+
+# 将模型放入Allama模型目录
+mkdir -p ~/.allama/models/
+mv llama-3-8b-q4_k_m.gguf ~/.allama/models/
+```
+
+**方法2：从Hugging Face下载**
+
+Hugging Face上有大量GGUF格式的模型：
+
+```bash
+# 使用huggingface-cli下载
+pip install huggingface-hub
+
+# 下载模型
+huggingface-cli download TheBloke/Llama-3-8B-GGUF llama-3-8b-q4_k_m.gguf --local-dir ~/.allama/models/
+
+# 或者使用git-lfs
+git lfs install
+git clone https://huggingface.co/TheBloke/Llama-3-8B-GGUF ~/.allama/models/llama-3-8b
+```
+
+**方法3：手动转换HF模型**
+
+如果您有Hugging Face格式的模型，可以使用llama.cpp提供的转换工具转换为GGUF：
+
+```bash
+# 克隆llama.cpp仓库
+git clone https://github.com/ggerganov/llama.cpp.git
+cd llama.cpp
+
+# 转换模型
+python convert.py /path/to/hf/model \
+  --outfile ~/.allama/models/converted-model.gguf \
+  --outtype q4_k_m
+```
+
+**方法4：使用Allama的pull命令**
+
+Allama支持类似Ollama的模型下载功能（如果配置了模型仓库）：
+
+```bash
+# 下载模型
+allama pull llama3
+
+# 列出已下载的模型
+allama list
+```
+
+### 使用GGUF模型
+
+**步骤1：准备模型文件**
+
+将GGUF模型文件放置在Allama的模型目录中：
+
+```bash
+# 创建模型目录
+mkdir -p ~/.allama/models/
+
+# 复制模型文件
+cp /path/to/model.gguf ~/.allama/models/
+
+# 验证模型
+file ~/.allama/models/model.gguf
+# 输出：model.gguf: GGUF v3 data
+```
+
+**步骤2：启动Allama服务器**
+
+```bash
+# 启动服务器
+allama serve --port 11435
+```
+
+**步骤3：使用模型**
+
+```bash
+# 通过API使用模型
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{
+    "model": "/path/to/model.gguf",
+    "prompt": "Hello, world!",
+    "stream": false
+  }'
+```
+
+**步骤4：配置模型别名（可选）**
+
+为了方便使用，可以为模型配置别名：
+
+```bash
+# 创建模型配置文件
+cat > ~/.allama/models/aliases.json << EOF
+{
+  "llama3": "~/.allama/models/llama-3-8b-q4_k_m.gguf",
+  "mistral": "~/.allama/models/mistral-7b-q4_k_m.gguf",
+  "qwen": "~/.allama/models/qwen-7b-q4_k_m.gguf"
+}
+EOF
+
+# 使用别名调用
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{"model":"llama3","prompt":"Hello!","stream":false}'
+```
+
+### 模型性能优化
+
+**1. 选择合适的量化级别**
+
+根据硬件和需求选择合适的量化级别：
+
+```bash
+# 查看不同量化级别的性能对比
+# Q4_K_M: 13%大小，95%精度，推荐用于大多数场景
+# Q5_K_M: 17%大小，97%精度，推荐用于高精度需求
+# Q8_0: 25%大小，99%精度，推荐用于最高精度需求
+```
+
+**2. 使用GPU加速**
+
+如果您的系统支持GPU，Allama会自动使用GPU加速：
+
+```bash
+# 检查GPU支持
+nvidia-smi  # NVIDIA GPU
+rocm-smi   # AMD GPU
+
+# Allama会自动检测并使用GPU
+# 无需额外配置
+```
+
+**3. 调整上下文长度**
+
+根据需求调整模型的上下文长度：
+
+```bash
+# 使用较小的上下文长度以提高速度
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3","prompt":"test","stream":false,"options":{"ctx_size":2048}}'
+
+# 使用较大的上下文长度以支持长文本
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3","prompt":"test","stream":false,"options":{"ctx_size":8192}}'
+```
+
+**4. 批处理**
+
+对于批量处理，可以增加并行度：
+
+```bash
+# 启动服务器时设置更高的并行度
+allama serve --parallel 4
+```
+
+### 常用模型推荐
+
+**入门级模型（适合测试和学习）：**
+
+| 模型 | 参数 | 量化 | 大小 | VRAM需求 | 用途 |
+|------|------|------|------|----------|------|
+| LLaMA 3 8B | 8B | Q4_K_M | 4.7GB | 6GB | 通用对话 |
+| Mistral 7B | 7B | Q4_K_M | 4.1GB | 5GB | 通用对话 |
+| Phi-3 Mini | 3.8B | Q4_K_M | 2.3GB | 3GB | 轻量级任务 |
+
+**中级模型（适合日常使用）：**
+
+| 模型 | 参数 | 量化 | 大小 | VRAM需求 | 用途 |
+|------|------|------|------|----------|------|
+| LLaMA 3 8B | 8B | Q5_K_M | 5.5GB | 7GB | 高精度对话 |
+| Qwen 2 7B | 7B | Q4_K_M | 4.2GB | 5GB | 中文优化 |
+| Gemma 2 9B | 9B | Q4_K_M | 5.4GB | 7GB | 多语言 |
+
+**高级模型（适合专业用途）：**
+
+| 模型 | 参数 | 量化 | 大小 | VRAM需求 | 用途 |
+|------|------|------|------|----------|------|
+| Mixtral 8x7B | 47B | Q4_K_M | 26GB | 30GB | 复杂推理 |
+| LLaMA 3 70B | 70B | Q4_K_M | 41GB | 45GB | 高质量生成 |
+| DeepSeek Coder | 33B | Q4_K_M | 19GB | 22GB | 代码生成 |
+
+### 模型兼容性验证
+
+**验证模型格式：**
+
+```bash
+# 检查模型文件格式
+file ~/.allama/models/model.gguf
+
+# 预期输出
+# model.gguf: GGUF v3 data
+```
+
+**验证模型完整性：**
+
+```bash
+# 使用llama.cpp的llama-cli验证
+git clone https://github.com/ggerganov/llama.cpp.git
+cd llama.cpp
+
+# 编译
+make
+
+# 验证模型
+./llama-cli -m ~/.allama/models/model.gguf -p "test" -n 10
+```
+
+**测试模型推理：**
+
+```bash
+# 使用Allama API测试
+curl -X POST http://localhost:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{"model":"model.gguf","prompt":"Hello, world!","stream":false}'
+```
+
+### 常见问题
+
+**Q: Allama支持哪些模型格式？**
+A: Allama主要支持GGUF格式，这是llama.cpp的标准格式。理论上支持llama.cpp支持的所有模型架构。
+
+**Q: 可以使用Hugging Face的原始模型吗？**
+A: 不可以直接使用，需要先转换为GGUF格式。可以使用llama.cpp的convert.py工具进行转换。
+
+**Q: 如何选择合适的量化级别？**
+A: 推荐使用Q4_K_M作为默认选择，它在大小和精度之间提供了最佳平衡。如果需要更高精度，可以使用Q5_K_M或Q8_0。
+
+**Q: 模型文件太大怎么办？**
+A: 可以选择更低级别的量化（如Q3_K_M），或者使用参数更小的模型。
+
+**Q: 可以同时加载多个模型吗？**
+A: 可以，但受限于系统内存。可以在启动服务器时设置`--max-loaded-models`参数来控制最大加载模型数。
+
+**Q: Allama与Ollama的模型兼容吗？**
+A: 完全兼容。Allama使用与Ollama相同的模型格式和目录结构，可以直接使用Ollama的模型。
+
+**Q: 如何更新模型？**
+A: 下载新的GGUF模型文件，替换旧文件即可。建议先备份旧模型。
+
+**Q: 模型推理速度慢怎么办？**
+A: 1) 使用更低级别的量化；2) 启用GPU加速；3) 增加并行度；4) 使用更小的模型。
 
 ---
 
