@@ -3,15 +3,16 @@
 ## 目录
 
 1. [快速开始](#快速开始)
-2. [安装指南](#安装指南)
-3. [Ollama迁移指南](#ollama迁移指南)
-4. [CLI命令参考](#cli命令参考)
-5. [认证系统应用案例](#认证系统应用案例)
-6. [计费系统应用案例](#计费系统应用案例)
-7. [OpenAI兼容API应用案例](#openai兼容api应用案例)
-8. [高级功能应用案例](#高级功能应用案例)
-9. [故障排除](#故障排除)
-10. [常见问题FAQ](#常见问题faq)
+2. [远程免费测试账号使用指南](#远程免费测试账号使用指南)
+3. [安装指南](#安装指南)
+4. [Ollama迁移指南](#ollama迁移指南)
+5. [CLI命令参考](#cli命令参考)
+6. [认证系统应用案例](#认证系统应用案例)
+7. [计费系统应用案例](#计费系统应用案例)
+8. [OpenAI兼容API应用案例](#openai兼容api应用案例)
+9. [高级功能应用案例](#高级功能应用案例)
+10. [故障排除](#故障排除)
+11. [常见问题FAQ](#常见问题faq)
 
 ---
 
@@ -235,6 +236,171 @@ curl -X POST http://localhost:11435/api/chat \
 - 查看认证系统应用案例，学习如何创建和管理用户
 - 探索OpenAI兼容API，了解如何与现有应用集成
 - 参考高级功能应用案例，学习批量处理、流式响应等高级用法
+
+---
+
+## 远程免费测试账号使用指南
+
+Allama为远程用户提供了默认的免费测试账号，方便快速体验Allama的功能而无需手动创建用户。这个账号专为远程测试设计，具有适度的配额限制。
+
+### 默认测试账号信息
+
+**账号详情：**
+- **用户名**: `test_user`
+- **邮箱**: `test@allama.ai`
+- **速率限制**: 60 requests/minute（每分钟60次请求）
+- **月度配额**: 100,000 tokens（每月10万个token）
+- **API Key**: 服务器启动时自动生成并显示
+
+**账号特点：**
+- **自动创建**: 每次服务器启动时自动创建或获取
+- **免费使用**: 无需任何费用，适合测试和评估
+- **适度限制**: 配额限制确保公平使用，避免滥用
+- **重置机制**: 每月配额在月初自动重置
+- **仅用于测试**: 不适合生产环境使用
+
+### 获取API Key
+
+服务器启动时会自动显示默认测试用户的API Key：
+
+```
+==========================================
+Default Test User Created
+==========================================
+Username: test_user
+API Key: allama_Heaaq4pYRY2kmJl4wvGcZjceyTO9ifKm
+Rate Limit: 60 requests/minute
+Monthly Quota: 100000 tokens
+==========================================
+```
+
+**重要提示：**
+- API Key在每次服务器启动时可能不同
+- 请妥善保存API Key，不要泄露给他人
+- 如果忘记API Key，可以重启服务器查看
+- 生产环境应创建独立的用户账号
+
+### 远程请求认证
+
+**本地请求 vs 远程请求：**
+
+Allama根据客户端IP地址自动判断请求类型：
+
+- **本地请求**: IP为127.0.0.1、::1或localhost的请求
+  - 无需认证，可以直接访问
+  - 适合本地开发和测试
+  - 通过`X-Forwarded-For: 127.0.0.1`或`X-Real-IP: 127.0.0.1`头部模拟
+
+- **远程请求**: IP非本地的请求
+  - 必须提供有效的API Key
+  - 通过`Authorization: Bearer <key>`头部认证
+  - 适合生产环境和远程访问
+
+**远程请求示例：**
+
+```bash
+# 使用默认测试账号的API Key进行远程请求
+curl -X POST http://your-server:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer allama_Heaaq4pYRY2kmJl4wvGcZjceyTO9ifKm" \
+  -H "X-Forwarded-For: 192.168.1.100" \
+  -d '{"model":"llama3","prompt":"Hello from remote!","stream":false}'
+```
+
+**认证头部说明：**
+- `Authorization: Bearer <key>`: API Key认证，必需
+- `X-Forwarded-For: <ip>`: 客户端真实IP，必需（用于判断是否为远程请求）
+- `Content-Type: application/json`: 内容类型，必需
+
+### 配额管理
+
+**速率限制：**
+- 默认测试账号的速率限制为60 requests/minute
+- 超过限制会返回429状态码
+- 速率限制按分钟重置
+
+**月度配额：**
+- 默认测试账号的月度配额为100,000 tokens
+- 包括prompt tokens和completion tokens
+- 配额按月重置（通常在每月1号）
+- 超过配额会返回错误提示
+
+**查看配额使用情况：**
+
+```bash
+# 查看计费摘要
+curl -X GET http://localhost:11435/api/billing/summary \
+  -H "Authorization: Bearer allama_Heaaq4pYRY2kmJl4wvGcZjceyTO9ifKm" \
+  -H "X-Forwarded-For: 127.0.0.1"
+
+# 响应示例
+{
+  "total_tokens": 15000,
+  "total_requests": 500,
+  "monthly_quota": 100000,
+  "quota_usage": "15%"
+}
+```
+
+### 适用场景
+
+**适合使用默认测试账号的场景：**
+- 快速体验Allama的功能
+- 开发和调试应用程序
+- 评估Allama是否满足需求
+- 学习API的使用方法
+- 小规模的个人项目测试
+
+**不适合使用默认测试账号的场景：**
+- 生产环境部署
+- 大规模应用
+- 多用户共享
+- 商业用途
+- 需要更高配额的场景
+
+### 从测试账号迁移到生产账号
+
+当您准备将应用部署到生产环境时，建议创建独立的用户账号：
+
+```bash
+# 创建生产用户账号
+curl -X POST http://localhost:11435/api/users \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{
+    "username": "production_user",
+    "email": "prod@company.com",
+    "rate_limit": 1000,
+    "monthly_quota": 10000000
+  }'
+
+# 响应会返回新的API Key
+# 将新API Key用于生产环境
+```
+
+**迁移步骤：**
+1. 创建生产用户账号
+2. 获取新的API Key
+3. 更新应用程序中的API Key配置
+4. 测试新账号是否正常工作
+5. 停止使用测试账号（可选）
+
+### 常见问题
+
+**Q: 默认测试账号的API Key会变吗？**
+A: 是的，每次服务器启动时可能生成新的API Key。建议保存当前使用的API Key。
+
+**Q: 可以提高默认测试账号的配额吗？**
+A: 不可以，默认测试账号的配额是固定的。如需更高配额，请创建独立的用户账号。
+
+**Q: 默认测试账号会过期吗？**
+A: 不会过期，但月度配额会每月重置。
+
+**Q: 可以删除默认测试账号吗？**
+A: 可以，但不建议。删除后服务器重启时会自动重新创建。
+
+**Q: 如何查看默认测试账号的使用情况？**
+A: 使用计费API查询，参考"查看配额使用情况"章节。
 
 ---
 
@@ -1979,6 +2145,280 @@ print(f"Tenant usage: {usage}")
 ---
 
 ## 计费系统应用案例
+
+### 远程计费用户管理
+
+Allama的计费系统专为远程用户设计，提供精确的token计数、详细的计费记录和灵活的配额管理。远程计费用户通过API Key进行认证，每个用户都有独立的速率限制和月度配额。
+
+**远程计费用户 vs 本地用户：**
+
+| 特性 | 本地用户 | 远程计费用户 |
+|------|---------|-------------|
+| 认证方式 | 无需认证（IP绕过） | API Key认证 |
+| 速率限制 | 无限制 | 可配置（如60 req/min） |
+| 月度配额 | 无限制 | 可配置（如100,000 tokens） |
+| 计费记录 | 不记录 | 详细记录 |
+| 适用场景 | 开发、测试 | 生产、商业 |
+| 成本追踪 | 不支持 | 支持 |
+
+**远程计费用户特点：**
+- **精确计费**: 每次API调用都记录token使用量
+- **独立配额**: 每个用户有独立的月度配额
+- **速率限制**: 防止单个用户过度使用资源
+- **详细记录**: 包含时间戳、用户信息、模型信息、请求内容
+- **成本分析**: 支持按时间范围、模型、用户等多维度分析
+- **配额告警**: 接近配额上限时可以设置告警
+
+### 创建远程计费用户
+
+**步骤1：创建用户账号**
+
+```bash
+# 创建远程计费用户
+curl -X POST http://localhost:11435/api/users \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{
+    "username": "remote_user_1",
+    "email": "user1@company.com",
+    "rate_limit": 120,
+    "monthly_quota": 5000000
+  }'
+```
+
+**参数说明：**
+- `username`: 用户名（必需）
+- `email`: 邮箱地址（必需）
+- `rate_limit`: 速率限制，单位：requests/minute（必需）
+- `monthly_quota`: 月度配额，单位：tokens（必需）
+
+**响应示例：**
+```json
+{
+  "user_id": "user_abc123",
+  "username": "remote_user_1",
+  "email": "user1@company.com",
+  "api_key": "allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "rate_limit": 120,
+  "monthly_quota": 5000000,
+  "created_at": "2026-05-03T10:00:00Z"
+}
+```
+
+**步骤2：分发API Key**
+
+将返回的API Key分发给远程用户。API Key应该通过安全的方式分发，如：
+- 通过加密的邮件发送
+- 使用密码管理器
+- 通过安全的内部系统分发
+
+**步骤3：用户使用API Key**
+
+远程用户使用分配的API Key进行认证：
+
+```bash
+# 远程用户使用API Key
+curl -X POST http://your-server:11435/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "X-Forwarded-For: 203.0.113.1" \
+  -d '{"model":"llama3","prompt":"Hello from remote!","stream":false}'
+```
+
+### 查看计费记录
+
+**查看用户的所有计费记录：**
+
+```bash
+# 查看计费记录（最近10条）
+curl -X GET "http://localhost:11435/api/billing/records?limit=10" \
+  -H "Authorization: Bearer allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**按时间范围查询：**
+
+```bash
+# 查询特定时间范围的记录
+curl -X GET "http://localhost:11435/api/billing/records?start_date=2026-05-01&end_date=2026-05-31&limit=50" \
+  -H "Authorization: Bearer allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**按模型查询：**
+
+```bash
+# 查询特定模型的记录
+curl -X GET "http://localhost:11435/api/billing/records?model=llama3&limit=20" \
+  -H "Authorization: Bearer allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+### 查看计费摘要
+
+**获取用户的计费摘要：**
+
+```bash
+# 查看计费摘要
+curl -X GET http://localhost:11435/api/billing/summary \
+  -H "Authorization: Bearer allama_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**响应示例：**
+```json
+{
+  "total_tokens": 1500000,
+  "total_requests": 5000,
+  "monthly_quota": 5000000,
+  "quota_usage": "30%",
+  "quota_remaining": 3500000,
+  "model_usage": {
+    "llama3": {
+      "total_tokens": 1000000,
+      "total_requests": 3000
+    },
+    "mistral": {
+      "total_tokens": 500000,
+      "total_requests": 2000
+    }
+  }
+}
+```
+
+### 配额管理
+
+**调整用户配额：**
+
+```bash
+# 更新用户配额（需要管理员权限）
+curl -X PUT http://localhost:11435/api/users/user_abc123 \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: 127.0.0.1" \
+  -d '{
+    "rate_limit": 200,
+    "monthly_quota": 10000000
+  }'
+```
+
+**配额告警：**
+
+当用户接近配额上限时，系统会自动记录告警。可以定期查询告警记录：
+
+```bash
+# 查询配额告警
+curl -X GET "http://localhost:11435/api/billing/alerts?limit=10" \
+  -H "Authorization: Bearer admin_api_key" \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+### 成本分析
+
+**按用户分析成本：**
+
+```python
+import requests
+import pandas as pd
+
+def analyze_user_cost(api_key, user_id):
+    """分析特定用户的成本"""
+    url = f"http://localhost:11435/api/billing/records"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "X-Forwarded-For": "127.0.0.1"
+    }
+    params = {"user_id": user_id, "limit": 1000}
+    
+    response = requests.get(url, headers=headers, params=params)
+    records = response.json()["records"]
+    
+    # 转换为DataFrame
+    df = pd.DataFrame(records)
+    
+    # 计算成本（假设每1000 tokens = $0.001）
+    cost_per_1k_tokens = 0.001
+    df["cost"] = df["total_tokens"] / 1000 * cost_per_1k_tokens
+    
+    # 按模型统计
+    cost_by_model = df.groupby("model_name")["cost"].sum()
+    
+    # 按日期统计
+    df["date"] = pd.to_datetime(df["timestamp"]).dt.date
+    cost_by_date = df.groupby("date")["cost"].sum()
+    
+    return {
+        "total_cost": df["cost"].sum(),
+        "total_tokens": df["total_tokens"].sum(),
+        "cost_by_model": cost_by_model.to_dict(),
+        "cost_by_date": cost_by_date.to_dict()
+    }
+
+# 使用示例
+cost_analysis = analyze_user_cost("admin_api_key", "user_abc123")
+print(f"Total cost: ${cost_analysis['total_cost']:.2f}")
+print(f"Total tokens: {cost_analysis['total_tokens']}")
+```
+
+### 用户管理
+
+**列出所有用户：**
+
+```bash
+# 列出所有用户
+curl -X GET http://localhost:11435/api/users \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**查看用户详情：**
+
+```bash
+# 查看特定用户详情
+curl -X GET http://localhost:11435/api/users/user_abc123 \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**删除用户：**
+
+```bash
+# 删除用户
+curl -X DELETE http://localhost:11435/api/users/user_abc123 \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+**重置API Key：**
+
+```bash
+# 重置用户的API Key
+curl -X POST http://localhost:11435/api/users/user_abc123/reset-key \
+  -H "X-Forwarded-For: 127.0.0.1"
+```
+
+### 最佳实践
+
+**1. 合理设置配额**
+- 根据用户的使用需求设置配额
+- 定期监控配额使用情况
+- 为重要用户预留额外配额
+
+**2. 定期备份数据**
+- 定期备份计费数据库
+- 导出计费记录到外部存储
+- 保留历史数据用于分析
+
+**3. 安全管理API Key**
+- 不要在代码中硬编码API Key
+- 使用环境变量或密钥管理系统
+- 定期轮换API Key
+
+**4. 监控异常使用**
+- 设置告警阈值
+- 监控异常的请求模式
+- 及时处理滥用行为
+
+**5. 提供使用报告**
+- 定期为用户提供使用报告
+- 帮助用户了解配额使用情况
+- 提供成本优化建议
 
 ### Ollama与Allama在计费方面的对比
 
