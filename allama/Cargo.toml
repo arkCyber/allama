@@ -21,16 +21,19 @@ tokio = { version = "1.35", features = ["full"] }
 futures-util = "0.3"
 async-stream = "0.3"
 uuid = { version = "1.6", features = ["v4", "serde"] }
+async-trait = "0.1"
+scopeguard = "1.2"
 
 # HTTP client for downloads
 reqwest = { version = "0.11", features = ["json", "stream"] }
 
 # HTTP server for API
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 tower = { version = "0.4", features = ["limit"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
 tower-layer = "0.3"
 hyper = "1.0"
+hyper-util = { version = "0.1", features = ["tokio", "server", "http1"] }
 http-body-util = "0.1"
 
 # File operations
@@ -87,9 +90,27 @@ chrono = { version = "0.4", features = ["serde"] }
 # Database for billing statistics (aerospace-level reliability)
 rusqlite = { version = "0.30", features = ["bundled"] }
 
+# Testing dependencies
+tempfile = "3.8"
+
+[build-dependencies]
+bindgen = "0.69"
+
 [features]
-default = []
+default = ["inference"]
 systemd = ["dep:systemd"]
+inference = []
+inference-service = ["inference"]
+
+
+[[bin]]
+name = "inference-service"
+path = "src/bin/inference_service.rs"
+required-features = ["inference"]
+
+
+
+
 
 [profile.release]
 opt-level = 3
