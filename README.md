@@ -60,6 +60,7 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 - **Command Aliases** (ls, remove, delete, copy, search, update)
 - **Color Output** (automatic terminal detection with NO_COLOR support)
 - **Edge Case Handling** (input validation and error handling)
+- **Unified AI Interface** (single endpoint for all models with automatic routing)
 
 ### Performance
 - All llama.cpp performance optimizations preserved
@@ -112,7 +113,7 @@ sudo make install
 # Display memory usage and model memory requirements
 ./bin/allama mem
 
-# Start server with model registry
+# Start allama serve (unified AI interface - port 11435)
 ./bin/allama serve
 
 # Manage model tags
@@ -134,20 +135,85 @@ sudo make install
 ./bin/allama copy src dst   # same as cp
 ```
 
+### Quick Start with Gemma4 26B
+
+```bash
+# 1. Build allama
+cargo build --bin allama
+
+# 2. Build llama-server
+cd build && cmake .. && make -j$(nproc)
+
+# 3. Start llama-server for Gemma4 26B (port 8082)
+./bin/llama-server \
+  -m /path/to/gemma-4-26b.gguf \
+  -c 98304 \
+  --port 8082 \
+  -t 8 \
+  --gpu-layers 0 \
+  --cache-type-k f16 \
+  --cache-type-v f16
+
+# 4. Start allama serve (unified interface - port 11435)
+./target/debug/allama serve --port 11435
+
+# 5. Use unified API
+curl -X POST http://127.0.0.1:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer allama_esVUQHQCvtrjOtlPt6vV579u3QNOeI5t" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"Hello"}]}'
+```
+
 ### Using the Enhanced Server
 
 ```bash
-# Start server with security features enabled
-./bin/llama-server \
-  --model-registry-path ~/.allama/registry.db \
-  --models-path ~/.allama/models \
-  --port 8080 \
-  --auth-api-key your-secret-key \
-  --enable-audit-log
+# Start allama serve (unified AI interface - port 11435)
+./bin/allama serve
 
-# Use API with authentication
+# Start llama-server for Gemma4 26B (port 8082)
+./bin/llama-server \
+  -m /path/to/gemma-4-26b.gguf \
+  -c 98304 \
+  --port 8082 \
+  -t 8 \
+  --gpu-layers 0 \
+  --cache-type-k f16 \
+  --cache-type-v f16
+
+# Use unified API (allama serve automatically routes to correct backend)
 curl -H "Authorization: Bearer your-secret-key" \
-  http://localhost:8080/v1/chat/completions
+  http://localhost:11435/api/chat \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"Hello"}]}'
+
+# For Gemma4 26B, request is automatically forwarded to llama-server (port 8082)
+# For other models, internal inference engine is used
+```
+
+### Unified AI Interface
+
+Allama serve now provides a **unified AI interface** on port 11435 that automatically routes requests to the appropriate backend:
+
+- **Gemma4 26B models** → Forwarded to llama-server (port 8082)
+- **Other models** → Handled by internal inference engine
+
+**Benefits:**
+- Single endpoint for all AI models
+- Transparent backend routing
+- No need to know which service handles which model
+- Ollama-compatible API
+
+**Example:**
+```bash
+# All these requests go through the same endpoint (11435)
+curl -X POST http://localhost:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-key" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"Hello"}]}'
+
+curl -X POST http://localhost:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-key" \
+  -d '{"model":"llama3","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
 ### Configuration File
@@ -467,6 +533,7 @@ Security enhancements inspired by aerospace industry standards and DO-178C certi
 - **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfile 支持**（自定义配置的模型定义 DSL）
 - **REST API**（Ollama 兼容端点：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+- **统一 AI 接口**（单一端点访问所有模型，自动路由）
 
 ### 性能
 - 保留所有 llama.cpp 性能优化
@@ -519,24 +586,89 @@ sudo make install
 # 显示内存使用情况和模型内存需求
 ./bin/allama mem
 
-# 启动带有模型注册表的服务器
+# 启动 allama serve（统一 AI 接口 - 端口 11435）
 ./bin/allama serve
+```
+
+### Gemma4 26B 快速开始
+
+```bash
+# 1. 构建 allama
+cargo build --bin allama
+
+# 2. 构建 llama-server
+cd build && cmake .. && make -j$(nproc)
+
+# 3. 启动 Gemma4 26B 的 llama-server（端口 8082）
+./bin/llama-server \
+  -m /path/to/gemma-4-26b.gguf \
+  -c 98304 \
+  --port 8082 \
+  -t 8 \
+  --gpu-layers 0 \
+  --cache-type-k f16 \
+  --cache-type-v f16
+
+# 4. 启动 allama serve（统一接口 - 端口 11435）
+./target/debug/allama serve --port 11435
+
+# 5. 使用统一 API
+curl -X POST http://127.0.0.1:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer allama_esVUQHQCvtrjOtlPt6vV579u3QNOeI5t" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"你好"}]}'
 ```
 
 ### 使用增强版服务器
 
 ```bash
-# 启用安全功能启动服务器
-./bin/llama-server \
-  --model-registry-path ~/.allama/registry.db \
-  --models-path ~/.allama/models \
-  --port 8080 \
-  --auth-api-key your-secret-key \
-  --enable-audit-log
+# 启动 allama serve（统一 AI 接口 - 端口 11435）
+./bin/allama serve
 
-# 使用带认证的 API
+# 启动 Gemma4 26B 的 llama-server（端口 8082）
+./bin/llama-server \
+  -m /path/to/gemma-4-26b.gguf \
+  -c 98304 \
+  --port 8082 \
+  -t 8 \
+  --gpu-layers 0 \
+  --cache-type-k f16 \
+  --cache-type-v f16
+
+# 使用统一 API（allama serve 自动路由到正确的后端）
 curl -H "Authorization: Bearer your-secret-key" \
-  http://localhost:8080/v1/chat/completions
+  http://localhost:11435/api/chat \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"你好"}]}'
+
+# 对于 Gemma4 26B，请求自动转发到 llama-server（端口 8082）
+# 对于其他模型，使用内置推理引擎
+```
+
+### 统一 AI 接口
+
+Allama serve 现在提供**统一 AI 接口**，端口 11435，自动将请求路由到适当的后端：
+
+- **Gemma4 26B 模型** → 转发到 llama-server（端口 8082）
+- **其他模型** → 由内置推理引擎处理
+
+**优势：**
+- 所有模型的单一端点
+- 透明的后端路由
+- 无需知道哪个服务处理哪个模型
+- Ollama 兼容 API
+
+**示例：**
+```bash
+# 所有请求都通过同一个端点（11435）
+curl -X POST http://localhost:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-key" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"你好"}]}'
+
+curl -X POST http://localhost:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-key" \
+  -d '{"model":"llama3","messages":[{"role":"user","content":"你好"}]}'
 ```
 
 ## 🔒 安全架构

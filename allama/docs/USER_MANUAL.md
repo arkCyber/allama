@@ -6,15 +6,16 @@
 3. [Service Management](#service-management)
 4. [Model Management](#model-management)
 5. [Server Operations](#server-operations)
-6. [Authentication](#authentication)
-7. [Billing](#billing)
-8. [Advanced Features](#advanced-features)
-9. [Performance Optimization](#performance-optimization)
-10. [Best Practices](#best-practices)
-11. [Security Guidelines](#security-guidelines)
-12. [Integration Examples](#integration-examples)
-13. [Monitoring & Alerting](#monitoring--alerting)
-14. [Troubleshooting](#troubleshooting)
+6. [Unified AI Interface](#unified-ai-interface)
+7. [Authentication](#authentication)
+8. [Billing](#billing)
+9. [Advanced Features](#advanced-features)
+10. [Performance Optimization](#performance-optimization)
+11. [Best Practices](#best-practices)
+12. [Security Guidelines](#security-guidelines)
+13. [Integration Examples](#integration-examples)
+14. [Monitoring & Alerting](#monitoring--alerting)
+15. [Troubleshooting](#troubleshooting)
 
 ## Installation
 
@@ -486,6 +487,116 @@ curl -X POST http://localhost:11435/api/chat \
 # List models
 curl http://localhost:11435/api/tags
 ```
+
+## Unified AI Interface
+
+Allama serve now provides a **unified AI interface** on port 11435 that automatically routes requests to the appropriate backend service.
+
+### Architecture
+
+```
+User Request → allama serve (11435) → Model Router → Backend Service
+                                                        ↓
+┌───────────────────────────────────────────────────────┐
+│                                                       │
+│  gemma4-26b → llama-server (port 8082)              │
+│  Other models → Internal inference engine             │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+```
+
+### Model Routing Rules
+
+| Model Pattern | Backend | Port | API Format |
+|---------------|---------|------|------------|
+| gemma4-26b, gemma-4-26b | llama-server | 8082 | OpenAI-compatible |
+| Other models | Internal inference | - | Internal |
+
+### Quick Start
+
+```bash
+# 1. Build allama
+cargo build --bin allama
+
+# 2. Build llama-server
+cd build && cmake .. && make -j$(nproc)
+
+# 3. Start llama-server for Gemma4 26B (port 8082)
+./bin/llama-server \
+  -m /path/to/gemma-4-26b.gguf \
+  -c 98304 \
+  --port 8082 \
+  -t 8 \
+  --gpu-layers 0 \
+  --cache-type-k f16 \
+  --cache-type-v f16
+
+# 4. Start allama serve (unified interface - port 11435)
+./target/debug/allama serve --port 11435
+
+# 5. Use unified API
+curl -X POST http://127.0.0.1:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_api_key" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+### Benefits
+
+- **Single Endpoint**: All models accessible through one port (11435)
+- **Transparent Routing**: Automatic backend selection based on model name
+- **No Complexity**: Users don't need to know which service handles which model
+- **Ollama Compatible**: Maintains Ollama API compatibility
+
+### Example Usage
+
+```bash
+# All requests go through the same endpoint (11435)
+curl -X POST http://127.0.0.1:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_api_key" \
+  -d '{"model":"gemma4-26b","messages":[{"role":"user","content":"Hello"}]}'
+
+curl -X POST http://127.0.0.1:11435/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_api_key" \
+  -d '{"model":"llama3","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+### Configuration
+
+The model routing is configured in `src/server/mod.rs`:
+
+```rust
+const MODEL_ROUTES: &[(&str, ModelBackend)] = &[
+    ("gemma4-26b", ModelBackend {
+        backend_type: BackendType::LlamaServer,
+        endpoint: "http://127.0.0.1:8082",
+    }),
+    ("gemma-4-26b", ModelBackend {
+        backend_type: BackendType::LlamaServer,
+        endpoint: "http://127.0.0.1:8082",
+    }),
+];
+```
+
+To add new model routes, modify this configuration and rebuild the binary.
+
+### Troubleshooting
+
+**Issue**: Request fails with "502 Bad Gateway"
+- **Cause**: Backend service (llama-server) is not running
+- **Solution**: Ensure llama-server is running on the configured port
+
+**Issue**: Model not recognized
+- **Cause**: Model name doesn't match routing pattern
+- **Solution**: Check MODEL_ROUTES configuration and model name
+
+**Issue**: Slow response times
+- **Cause**: Network latency between services
+- **Solution**: Ensure allama serve and backend services are on the same machine
+
+
 
 ## Authentication
 
