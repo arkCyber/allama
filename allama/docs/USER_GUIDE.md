@@ -751,6 +751,47 @@ rm -rf ~/.rustup/
 
 Allama基于llama.cpp构建，完全兼容llama.cpp的GGUF模型格式。这意味着您可以使用llama.cpp生态系统中的所有模型，无需任何转换或修改。
 
+### 大模型支持（26B+ 模型与长上下文）
+
+Allama支持通过llama-server运行大型模型（如Gemma4 26B）并支持长上下文窗口（96k tokens）。
+
+**支持的大模型：**
+- **Gemma4 26B**: 支持96k上下文窗口
+- **Mixtral 8x7B**: 47B参数混合专家模型
+- **LLaMA 3 70B**: 70B参数高质量模型
+
+**长上下文支持：**
+- **96k上下文**: 支持高达98,304 tokens的上下文窗口
+- **TurboQuant**: 自动启用稀疏V反量化以优化内存使用
+- **KV缓存优化**: 高效的KV缓存分配和管理
+- **GPU卸载**: 完整的层和KV缓存GPU卸载
+
+**重要说明：**
+- 大模型（26B+）建议使用llama-server而非inference-service FFI后端
+- llama-server对大模型有更好的内存管理和优化策略
+- 96k上下文需要至少64GB系统内存
+- 详见`examples/gemma4_26b_96k_context.rs`示例代码
+
+**运行26B模型示例：**
+```bash
+# 确保 llama-server 已编译
+cd /Users/arksong/Allama/build
+make llama-server
+
+# 运行26B模型测试示例
+cargo run --example gemma4_26b_96k_context --features inference
+```
+
+**测试场景包括：**
+- 英文对话
+- 中文对话
+- 代码生成
+- 长文档摘要
+- 多轮对话
+- 创意写作
+- 技术问答
+- 数学推理
+
 ### GGUF模型格式
 
 **什么是GGUF？**

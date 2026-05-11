@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -86,7 +87,7 @@ impl ModelManager {
         })
     }
     
-    /// Load a model from file
+    /// Load a model from file with optimized parameters
     pub async fn load_model(
         &self,
         model_name: &str,
@@ -123,12 +124,21 @@ impl ModelManager {
         
         // Use default params if not provided
         let m_params = model_params.unwrap_or_else(|| {
+            #[allow(unused_unsafe)]
             unsafe { super::ffi::default_model_params() }
         });
         
         let c_params = context_params.unwrap_or_else(|| {
+            #[allow(unused_unsafe)]
             unsafe { super::ffi::default_context_params() }
         });
+        
+        // Aerospace-level: Log parameter details for debugging
+        let n_ctx_value = c_params.n_ctx;
+        info!("Model params: n_gpu_layers={}, use_mmap={}, use_mlock={}, use_direct_io={}", 
+              m_params.n_gpu_layers, m_params.use_mmap, m_params.use_mlock, m_params.use_direct_io);
+        info!("Context params: n_ctx={}, n_batch={}, n_ubatch={}, n_threads={}, offload_kqv={}, flash_attn_type={}", 
+              c_params.n_ctx, c_params.n_batch, c_params.n_ubatch, c_params.n_threads, c_params.offload_kqv, c_params.flash_attn_type);
         
         // Load model (FFI call - must be on main thread for thread safety)
         let path_str = model_path.to_str()
@@ -172,7 +182,16 @@ impl ModelManager {
         info!("Model loaded: {} params, {} bytes, {} layers", n_params, size_bytes, n_layer);
         
         // Initialize context (FFI call - must be on main thread for thread safety)
+        #[allow(unused_unsafe)]
         let context = unsafe { super::ffi::init_context(model, c_params) }?;
+        
+        if context.is_null() {
+            error!("Failed to initialize context for model '{}'", model_name);
+            error!("Context size requested: {}", n_ctx_value);
+            error!("Model info: size={}MB, params={}, n_ctx_train={}, layers={}", 
+                   size_bytes / (1024 * 1024), n_params, n_ctx_train, n_layer);
+            anyhow::bail!("Failed to initialize context - context pointer is null for context size {}", n_ctx_value);
+        }
         
         let handle = Arc::new(ModelHandle::new(model, context, info));
         
@@ -237,6 +256,22 @@ impl ModelManager {
         // Check in models directory
         let models_dir_path = self.models_dir.join(model_name);
         if models_dir_path.exists() {
+            // If it's a directory, look for GGUF file inside
+            if models_dir_path.is_dir() {
+                let gguf_file = models_dir_path.join(format!("{}.gguf", model_name));
+                if gguf_file.exists() {
+                    return Ok(gguf_file);
+                }
+                // Try common GGUF file names
+                if let Ok(entries) = fs::read_dir(&models_dir_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|e| e.to_str()) == Some("gguf") {
+                            return Ok(path);
+                        }
+                    }
+                }
+            }
             return Ok(models_dir_path);
         }
         

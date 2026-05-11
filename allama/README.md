@@ -46,7 +46,351 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 - **CPU Fallback**: Automatic CPU inference when GPU unavailable
 - **Resource Monitoring**: Real-time CPU, memory, disk I/O, and network I/O monitoring
 
+### Response Caching
+- **Intelligent Caching**: LRU/LFU/FIFO eviction strategies
+- **Configurable TTL**: Time-to-live for cached responses
+- **Cache Statistics**: Hit rate, miss rate, and eviction tracking
+- **Size Limits**: Configurable maximum cache size and entry count
+
+### Model Management
+- **Model Discovery**: Automatic discovery from Hugging Face cache, Ollama, and local directories
+- **Model Filtering**: Filter models by type (text, image, audio) and size
+- **Custom Models**: Create and manage custom model configurations
+- **Model Persistence**: Save and load model configurations
+- **Large Model Support**: Support for 26B+ models with 96k+ context windows via llama-server integration
+
+### Mixture of Experts (MOE)
+- **Hybrid Processing**: CPU/GPU hybrid processing for large models
+- **Layer Allocation**: Intelligent layer allocation based on compute intensity
+- **Expert Routing**: Load-balanced and compute-based routing strategies
+- **Memory Optimization**: Dynamic layer offloading to manage VRAM constraints
+
+### Large Model Support
+- **26B Model Support**: Gemma4 26B with 96k context window via llama-server
+- **TurboQuant**: Automatic sparse V dequantization for memory optimization
+- **Context Management**: Efficient KV cache allocation for long contexts
+- **GPU Offloading**: Full layer and KV cache offloading to GPU
+
+### Metrics & Monitoring
+- **Performance Metrics**: Request duration, throughput, error rates
+- **Resource Metrics**: CPU, memory, disk, and network usage
+- **Custom Metrics**: Counters, gauges, and histograms
+- **Prometheus Export**: Export metrics in Prometheus format
+
+### Anomaly Detection
+- **Resource Anomalies**: Detect unusual resource usage patterns
+- **Performance Anomalies**: Identify performance degradation
+- **Threshold Alerts**: Configurable thresholds for anomaly detection
+- **Automatic Monitoring**: Continuous monitoring of system health
+
+### Service Management
+- **Background Service**: Run as a system service (Windows Service, systemd, launchd)
+- **Auto-start**: Configure automatic startup on boot
+- **Service Status**: Check service status and health
+- **Service Control**: Start, stop, and restart services
+
+### Update Management
+- **Automatic Updates**: Check for and install updates automatically
+- **Version Checking**: Compare installed version with latest release
+- **Rollback Support**: Rollback to previous versions if needed
+- **Update Notifications**: Notify users of available updates
+
+## Pre-built Binaries
+
+Allama provides pre-built binaries for multiple platforms, enabling you to download and use it without compilation.
+
+### Supported Platforms
+
+- **Linux**: x86_64 (amd64), ARM64 (aarch64)
+- **macOS**: x86_64 (Intel), ARM64 (Apple Silicon), Universal Binary
+- **Windows**: x86_64
+
+### Features Included
+
+Pre-built binaries include:
+- All GPU backends (CUDA, Metal, ROCm)
+- Automatic hardware detection
+- Complete feature set (authentication, billing, monitoring)
+- Static linking (no external dependencies required)
+- Optimized for performance (LTO, strip symbols)
+
+### Download Options
+
+#### Automatic Installation Script
+
+```bash
+# Install latest version
+curl -fsSL https://raw.githubusercontent.com/arkCyber/allama/main/scripts/install.sh | bash
+
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/arkCyber/allama/main/scripts/install.sh | bash -s v1.0.0
+
+# Install to custom directory
+curl -fsSL https://raw.githubusercontent.com/arkCyber/allama/main/scripts/install.sh | bash -s latest /opt/allama
+```
+
+#### Manual Download
+
+Visit [GitHub Releases](https://github.com/arkCyber/allama/releases) to download:
+
+**Binaries:**
+- `allama-linux-amd64.tar.gz` - Linux x86_64
+- `allama-linux-arm64.tar.gz` - Linux ARM64
+- `allama-macos-amd64.tar.gz` - macOS Intel
+- `allama-macos-arm64.tar.gz` - macOS Apple Silicon
+- `allama-macos-universal.tar.gz` - macOS Universal Binary
+- `allama-windows-amd64.zip` - Windows x86_64
+
+**Installers:**
+- `allama-*-macos.dmg` - macOS DMG Installer (drag-and-drop installation)
+- `allama-*-windows-setup.exe` - Windows Installer (NSIS-based)
+- `allama_*_amd64.deb` - Linux Debian/Ubuntu Package
+
+Each release includes:
+- The binary executable
+- SHA256 checksum file
+- Release notes
+
+#### Verification
+
+After downloading, verify the integrity:
+
+```bash
+# Download the checksum file
+wget https://github.com/arkCyber/allama/releases/download/v1.0.0/SHA256SUMS.txt
+
+# Verify
+sha256sum -c SHA256SUMS.txt
+```
+
+### Installation from Binary
+
+#### Option A: Using Installer (Recommended)
+
+**macOS:**
+```bash
+# Download and open the .dmg file
+# Double-click the DMG to mount it
+# Drag Allama.app to Applications folder
+
+# Or install from command line
+hdiutil attach allama-*-macos.dmg
+cp -R /Volumes/Allama/Allama.app /Applications/
+hdiutil detach /Volumes/Allama
+
+# Run from Applications
+/Applications/Allama.app/Contents/MacOS/allama --help
+```
+
+**Windows:**
+```bash
+# Double-click the .exe installer
+# Follow the installation wizard
+# The installer will:
+#   - Copy allama.exe to Program Files
+#   - Add to system PATH
+#   - Create Start Menu shortcuts
+#   - Register uninstaller
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+# Install the .deb package
+sudo dpkg -i allama_*_amd64.deb
+sudo apt-get install -f  # Handle dependencies
+
+# The package will:
+#   - Install to /usr/bin/allama
+#   - Create allama user
+#   - Set up data directory at /var/lib/allama
+#   - Install man page
+```
+
+#### Option B: Manual Binary Installation
+
+```bash
+# Extract
+tar -xzf allama-linux-amd64.tar.gz
+
+# Make executable
+chmod +x allama-linux-amd64
+
+# Move to PATH
+sudo mv allama-linux-amd64 /usr/local/bin/allama
+
+# Or use in current directory
+./allama-linux-amd64 --help
+```
+
+### Building Release Binaries
+
+If you want to build release binaries yourself:
+
+```bash
+# Install cross-compilation tools (Linux)
+sudo apt-get install gcc-aarch64-linux-gnu gcc-x86-64-linux-gnu
+
+# Or use cross-rs for Windows builds
+cargo install cross
+
+# Build all platforms
+chmod +x scripts/build-release.sh
+./scripts/build-release.sh
+
+# Build specific version
+./scripts/build-release.sh v1.0.0
+```
+
+This will create static binaries with:
+- Maximum optimization (-O3)
+- Link-time optimization (LTO)
+- Stripped symbols
+- Static linking where possible
+
+### Building Installers
+
+To build platform-specific installers:
+
+**macOS DMG:**
+```bash
+chmod +x scripts/build-dmg.sh
+./scripts/build-dmg.sh v1.0.0
+```
+
+**Windows EXE (requires NSIS):**
+```bash
+# Install NSIS from https://nsis.sourceforge.io/
+chmod +x scripts/build-installer.sh
+./scripts/build-installer.sh v1.0.0
+```
+
+**Linux DEB:**
+```bash
+chmod +x scripts/build-deb.sh
+./scripts/build-deb.sh v1.0.0
+```
+
+## CLI Commands
+
+Allama provides a comprehensive CLI aligned with Ollama's methodology:
+
+### Installation Commands
+```bash
+allama install [--dir <path>]    # Install allama
+allama uninstall                 # Uninstall allama
+allama update                    # Update to latest version
+allama version                   # Show version information
+```
+
+### Service Management
+```bash
+allama start                     # Start allama service
+allama stop                      # Stop allama service
+allama status                    # Check service status
+```
+
+### Model Management
+```bash
+allama list                      # List available models (alias: ls)
+allama pull <model>              # Download a model
+allama run <model>               # Run a model interactively
+allama show <model>              # Show model details
+allama rm <model>                # Remove a model
+allama ps                        # List running models
+allama stop <model>              # Stop a running model
+```
+
+### Model Operations
+```bash
+allama create <model> [--from <file>]  # Create a custom model
+allama cp <source> <dest>              # Copy a model
+allama push <model> [--insecure]       # Push a model to registry
+```
+
+### Importing from Ollama
+
+```bash
+# Import models from Ollama installation
+./scripts/import-from-ollama.sh
+```
+
+This script copies models from your Ollama installation to Allama, or you can enable model discovery to use Ollama models directly without copying.
+
+### Server & Integration
+```bash
+allama serve [--host <host>] [--port <port>] [--parallel <n>]  # Start server
+allama launch [integration] [model] [config]                  # Launch integrations
+```
+
+### Cloud Integration
+```bash
+allama signin                     # Sign in to Ollama Cloud
+allama signout                    # Sign out of Ollama Cloud
+```
+
+### Model Control
+```bash
+allama stop-model <model>         # Stop a running model
+```
+
+### Environment Variables
+- `OLLAMA_HOST`: Default host for server (default: 127.0.0.1)
+- `OLLAMA_NUM_PARALLEL`: Number of parallel requests (default: 1)
+- `OLLAMA_MAX_LOADED_MODELS`: Maximum loaded models (default: 3)
+- `OLLAMA_MAX_QUEUE`: Maximum queue size (default: 512)
+
 ## Quick Start
+
+### Installation
+
+#### Option 1: Pre-built Binary (Recommended)
+
+Download and install the pre-built binary for your platform:
+
+```bash
+# Linux x86_64
+curl -fsSL https://raw.githubusercontent.com/arkCyber/allama/main/scripts/install.sh | bash
+
+# macOS (Apple Silicon)
+curl -fsSL https://raw.githubusercontent.com/arkCyber/allama/main/scripts/install.sh | bash
+
+# Or manually download from GitHub Releases
+# Visit: https://github.com/arkCyber/allama/releases
+```
+
+The installer will:
+- Detect your platform automatically
+- Download the appropriate binary
+- Verify the checksum
+- Install to `~/.allama/` by default
+- Add to PATH in your shell configuration
+
+#### Option 2: Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/arkCyber/allama.git
+cd allama
+
+# Build in release mode
+cargo build --release
+
+# The binary will be at target/release/allama
+```
+
+#### Option 3: Build Release Binaries
+
+To build release binaries for all platforms:
+
+```bash
+# Make the build script executable
+chmod +x scripts/build-release.sh
+
+# Build for all platforms
+./scripts/build-release.sh
+
+# Binaries will be in dist/release-<version>/
+```
 
 ### Starting the Server
 
@@ -329,14 +673,35 @@ allama/
 │   ├── auth/                # Authentication and user management
 │   ├── billing/             # Billing and usage tracking
 │   ├── model/               # Model management
+│   │   ├── model_filter.rs  # Model filtering
+│   │   ├── model_discovery.rs # Model discovery
+│   │   └── response_cache.rs # Response caching
+│   ├── moe/                 # Mixture of Experts
 │   ├── audit/               # Audit logging
 │   ├── fault/               # Fault tolerance
-│   └── security/            # Security features
+│   ├── security/            # Security features
+│   ├── metrics/             # Metrics collection
+│   ├── anomaly/             # Anomaly detection
+│   ├── gpu/                 # GPU detection
+│   ├── network/             # Network utilities
+│   ├── service/             # Service management
+│   ├── update/              # Update management
+│   ├── config/              # Configuration
+│   ├── installer/           # Installation
+│   ├── platform/             # Platform-specific code
+│   └── logging/             # Logging
 ├── docs/
+│   ├── USER_MANUAL.md       # User manual
 │   ├── AUTHENTICATION_GUIDE.md  # Authentication documentation
 │   └── ...
 ├── tests/
 │   └── integration/         # Integration tests
+├── scripts/
+│   ├── build-release.sh      # Release build script
+│   ├── build-dmg.sh         # macOS DMG builder
+│   ├── build-installer.sh   # Windows installer builder
+│   ├── build-deb.sh         # Linux DEB builder
+│   └── install.sh           # Installation script
 ├── examples/                # Example scripts
 ├── Cargo.toml               # Dependencies
 └── README.md                # This file
@@ -356,11 +721,60 @@ allama/
 - Billing statistics and summaries
 - Time-based querying
 
+#### Model Management (`src/model/`)
+- **Model Filter** (`model_filter.rs`): Filter models by type and size
+- **Model Discovery** (`model_discovery.rs`): Discover models from multiple sources
+- **Response Cache** (`response_cache.rs`): Intelligent caching with LRU/LFU/FIFO
+
 #### Server Module (`src/server/`)
 - HTTP API server with Axum
 - Ollama-compatible endpoints
 - OpenAI-compatible endpoints
 - Authentication middleware
+- Rate limiting and graceful degradation
+
+#### MOE Module (`src/moe/`)
+- Mixture of Experts implementation
+- Hybrid CPU/GPU processing
+- Layer allocation and offloading
+- Expert routing strategies
+
+#### Metrics Module (`src/metrics/`)
+- Performance metrics collection
+- Resource monitoring
+- Prometheus export
+- Custom counters, gauges, histograms
+
+#### Anomaly Detection (`src/anomaly/`)
+- Resource anomaly detection
+- Performance anomaly detection
+- Threshold-based alerting
+- Continuous health monitoring
+
+#### Service Management (`src/service/`)
+- Background service management
+- System service integration (systemd, launchd, Windows Service)
+- Auto-start configuration
+- Service status monitoring
+
+## Examples
+
+### Large Model Testing
+
+Allama includes comprehensive examples for testing large models with long context windows:
+
+```bash
+# Test Gemma4 26B with 96k context (requires llama-server)
+cargo run --example gemma4_26b_96k_context --features inference
+
+# Test simple model inference
+cargo run --example gemma4_simple_test --features inference
+
+# Test long context scenarios
+cargo run --example gemma4_long_context --features inference
+```
+
+**Note**: The 26B model example requires llama-server (not inference-service FFI backend) due to memory management requirements for large models with 96k context windows. See `examples/README.md` for details.
 
 ## Development
 
@@ -396,6 +810,7 @@ bash tests/integration/remote_auth_test.sh
 
 ## Documentation
 
+- **User Manual**: [docs/USER_MANUAL.md](docs/USER_MANUAL.md) - Comprehensive user guide
 - **Authentication Guide**: [docs/AUTHENTICATION_GUIDE.md](docs/AUTHENTICATION_GUIDE.md)
 - **API Endpoints**: See API Endpoints section above
 - **Examples**: See `examples/` directory
@@ -467,4 +882,5 @@ This project follows the [llama.cpp contributing guidelines](../../CONTRIBUTING.
 For issues and questions:
 - GitHub Issues: https://github.com/arkCyber/allama/issues
 - Documentation: https://github.com/arkCyber/allama
+- User Manual: [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
 - Authentication Guide: [docs/AUTHENTICATION_GUIDE.md](docs/AUTHENTICATION_GUIDE.md)

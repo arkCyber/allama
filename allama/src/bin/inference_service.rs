@@ -95,6 +95,7 @@ struct InferenceResponse {
 struct ServiceState {
     model_manager: Arc<ModelManager>,
     inference_engine: Arc<InferenceEngine>,
+    context_size: u32,
     // Concurrent control
     global_semaphore: Arc<Semaphore>,
     model_semaphores: Arc<RwLock<HashMap<String, Arc<Semaphore>>>>,
@@ -191,11 +192,49 @@ async fn handle_load_model(
     
     use allama::inference::ffi;
     
-    let model_params = ffi::default_model_params();
-    let context_params = ffi::default_context_params();
+    let mut model_params = ffi::default_model_params();
     
-    match state.model_manager.load_model(&load_req.model, Some(model_params), Some(context_params)).await {
-        Ok(handle) => {
+    // Aerospace-level: Optimize model params for large models with TurboQuant
+    if load_req.model.contains("26B") || load_req.model.contains("26b") {
+        info!("Detected 26B model, optimizing model params with TurboQuant");
+        model_params.use_mlock = false; // Disable memory locking to avoid OOM
+        model_params.use_mmap = true;   // Use mmap for better memory efficiency
+        model_params.n_gpu_layers = -1; // Offload all layers to GPU
+        model_params.use_direct_io = true; // Use direct I/O for better performance
+        model_params.no_alloc = false; // Allow allocation (needed for context)
+        // TurboQuant is automatically enabled in llama.cpp when available
+    }
+    
+    // Aerospace-level: Adjust context params for large models
+    let mut context_params = ffi::default_context_params();
+    
+    // Check if this is a 26B model and adjust context size
+    if load_req.model.contains("26B") || load_req.model.contains("26b") {
+        info!("Detected 26B model, using CLI context size: {} (TurboQuant enabled)", state.context_size);
+        context_params.n_ctx = state.context_size; // Use CLI context size (can be 96k)
+        context_params.n_batch = 512; // Smaller batch size for better stability
+        context_params.n_ubatch = 512;
+        context_params.n_threads = 4; // Limit threads to avoid OOM
+        context_params.n_threads_batch = 4;
+        context_params.offload_kqv = true; // Offload KV cache to GPU (TurboQuant optimization)
+        context_params.flash_attn_type = 2; // Enable Flash Attention 2 for better performance
+        context_params.type_k = 1; // Use f16 for K cache
+        context_params.type_v = 1; // Use f16 for V cache
+        context_params.swa_full = false; // Disable sliding window attention for full context
+    } else {
+        // Use the CLI context size for other models
+        context_params.n_ctx = state.context_size;
+        info!("Using CLI context size: {}", state.context_size);
+    }
+    
+    // Aerospace-level: Add timeout for model loading
+    let load_result = tokio::time::timeout(
+        Duration::from_secs(600), // 10 minute timeout for large models with 96k context
+        state.model_manager.load_model(&load_req.model, Some(model_params), Some(context_params))
+    ).await;
+    
+    match load_result {
+        Ok(Ok(handle)) => {
             info!("✅ Model loaded successfully: {}", load_req.model);
             let response = LoadModelResponse {
                 success: true,
@@ -210,7 +249,7 @@ async fn handle_load_model(
                 .body(Full::new(Bytes::from(json)))
                 .unwrap())
         },
-        Err(e) => {
+        Ok(Err(e)) => {
             error!("❌ Failed to load model: {}", e);
             let response = LoadModelResponse {
                 success: false,
@@ -221,6 +260,21 @@ async fn handle_load_model(
             let json = serde_json::to_string(&response).unwrap();
             Ok(Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap())
+        },
+        Err(_) => {
+            error!("❌ Model loading timed out after 300 seconds");
+            let response = LoadModelResponse {
+                success: false,
+                message: "Model loading timed out after 300 seconds. The model may be too large or system resources insufficient.".to_string(),
+                model_name: load_req.model,
+                model_size: None,
+            };
+            let json = serde_json::to_string(&response).unwrap();
+            Ok(Response::builder()
+                .status(StatusCode::REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .body(Full::new(Bytes::from(json)))
                 .unwrap())
@@ -508,6 +562,7 @@ async fn main() -> Result<()> {
     let state = Arc::new(ServiceState {
         model_manager: Arc::new(model_manager),
         inference_engine: Arc::new(inference_engine),
+        context_size: cli.context_size,
         global_semaphore: Arc::new(Semaphore::new(max_concurrent_requests)),
         model_semaphores: Arc::new(RwLock::new(HashMap::new())),
         active_requests: Arc::new(Mutex::new(0)),
