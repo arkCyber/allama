@@ -71,6 +71,13 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 - **Context Management**: Efficient KV cache allocation for long contexts
 - **GPU Offloading**: Full layer and KV cache offloading to GPU
 
+### Memory Optimization
+- **mmap Support**: Memory-mapped file loading for fast model loading and reduced memory usage
+- **Smart Backend Selection**: Automatic CPU/GPU backend selection based on model size
+- **Optimized Parameters**: Aerospace-level optimized model and context parameters
+- **Memory Monitoring**: Real-time memory usage tracking and optimization
+- **Context Window Scaling**: Support for up to 256k context windows with proper memory management
+
 ### Metrics & Monitoring
 - **Performance Metrics**: Request duration, throughput, error rates
 - **Resource Metrics**: CPU, memory, disk, and network usage
@@ -775,6 +782,20 @@ cargo run --example gemma4_long_context --features inference
 ```
 
 **Note**: The 26B model example requires llama-server (not inference-service FFI backend) due to memory management requirements for large models with 96k context windows. See `examples/README.md` for details.
+
+### Memory Optimization Testing
+
+Allama includes mmap verification and memory optimization testing:
+
+```bash
+# Verify mmap functionality
+bash examples/mmap_verification_test.sh
+
+# Test memory usage with different context sizes
+cargo run --example memory_stress_test --features inference
+```
+
+See [ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md](ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md) for detailed mmap testing results.
 
 ## Development
 
