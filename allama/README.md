@@ -446,6 +446,10 @@ curl -X POST http://localhost:11435/api/chat \
   -d '{"model":"llama3","messages":[{"role":"user","content":"Hello!"}],"stream":false}'
 ```
 
+#### Optional `thinking` (chain-of-thought)
+
+If the model wraps internal reasoning in supported XML-style tag pairs (see `src/inference/thinking.rs` in this crate), Allama strips those regions from the visible completion and may return them in the JSON field `thinking` on **`/api/generate`** and **`/api/chat`**. See `examples/thinking_split_app.rs`, `examples/thinking_generate_response.rs`, and [docs/USER_MANUAL.md](docs/USER_MANUAL.md#chain-of-thought-thinking).
+
 #### Remote Requests (Authentication Required)
 
 ```bash
@@ -514,8 +518,8 @@ For detailed authentication documentation, see [docs/AUTHENTICATION_GUIDE.md](do
 |----------|--------|--------------|-------------|
 | `/api/tags` | GET | No | List available models |
 | `/api/tags/:model` | GET | No | Get model information |
-| `/api/generate` | POST | Remote only | Generate text |
-| `/api/chat` | POST | Remote only | Chat completion |
+| `/api/generate` | POST | Remote only | Generate text (optional `thinking` when model emits tagged CoT) |
+| `/api/chat` | POST | Remote only | Chat completion (optional `thinking`; `message.content` is stripped text) |
 | `/api/embed` | POST | Remote only | Generate embeddings |
 | `/api/ps` | GET | No | List running models |
 | `/api/show` | POST | Yes | Show model details |
@@ -783,6 +787,28 @@ cargo run --example gemma4_long_context --features inference
 
 **Note**: The 26B model example requires llama-server (not inference-service FFI backend) due to memory management requirements for large models with 96k context windows. See `examples/README.md` for details.
 
+### Ollama-style HTTP, batch payloads, and thinking (testable without a model)
+
+Rust examples under `examples/` include unit tests for JSON builders and chain-of-thought splitting:
+
+```bash
+cd allama
+
+# Library + integration tests (default features include `inference`)
+cargo test --features inference
+
+# Selected example unit tests (no running server)
+cargo test --example ollama_compatible_api_client --features inference
+cargo test --example batch_generate_payloads
+cargo test --example thinking_split_app --features inference
+cargo test --example thinking_generate_response --features inference
+
+# Optional: live HTTP smoke against `allama serve` (version + tags)
+ALLAMA_HTTP_SMOKE=1 cargo run --example ollama_compatible_api_client
+```
+
+Full automated script (tests + example checks): `bash scripts/run_automated_tests.sh`.
+
 ### Memory Optimization Testing
 
 Allama includes mmap verification and memory optimization testing:
@@ -802,15 +828,33 @@ See [ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md](ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md)
 ### Running Tests
 
 ```bash
-# Run all tests
-cargo test
+cd allama
 
-# Run integration tests
+# Full crate tests (recommended: enable inference)
+cargo test --features inference
+
+# Same as CI helper: library tests + selected `cargo test --example …` + `cargo check` on examples
+bash scripts/run_automated_tests.sh
+
+# Legacy integration shell scripts (optional)
 bash tests/integration/run_all_tests.sh
 
-# Run specific test
+# Run specific remote auth script
 bash tests/integration/remote_auth_test.sh
 ```
+
+### Publishing changes to GitHub
+
+From the repository root (or `allama/` for the Rust crate only):
+
+```bash
+git status
+git add README.md allama/README.md allama/docs/USER_MANUAL.md allama/examples/README.md
+git commit -m "docs: update README, user manual, and examples index"
+git push origin <your-branch>
+```
+
+Then open a **Pull Request** on GitHub against the default branch. For upstream **llama.cpp**–related policies, see `AGENTS.md` / `CONTRIBUTING.md` if you contribute to those projects.
 
 ### Adding New Features
 
@@ -831,10 +875,11 @@ bash tests/integration/remote_auth_test.sh
 
 ## Documentation
 
-- **User Manual**: [docs/USER_MANUAL.md](docs/USER_MANUAL.md) - Comprehensive user guide
+- **User Manual**: [docs/USER_MANUAL.md](docs/USER_MANUAL.md) - Comprehensive user guide (includes `thinking` / examples table under *Integration Examples*)
 - **Authentication Guide**: [docs/AUTHENTICATION_GUIDE.md](docs/AUTHENTICATION_GUIDE.md)
+- **Examples index**: [examples/README.md](examples/README.md) - Application demos and shell tests
 - **API Endpoints**: See API Endpoints section above
-- **Examples**: See `examples/` directory
+- **Automated test driver**: `bash scripts/run_automated_tests.sh` from the `allama/` directory
 
 ## Alignment with Ollama
 

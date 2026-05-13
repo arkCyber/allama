@@ -52,7 +52,7 @@ This is a security-hardened, aerospace-grade version of [llama.cpp](https://gith
 - **Hugging Face Model Catalog** (cached catalog of available models with auto-update)
 - **Allama CLI** (model management commands: pull, list, show, rm, cp, add, create, search, stats, validate, mem, catalog, cache, logs, tag)
 - **Modelfile Support** (model definition DSL for custom configurations)
-- **REST API** (Ollama-compatible endpoints: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+- **REST API** (Ollama-compatible endpoints: /api/tags, /api/generate, /api/chat, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version; optional chain-of-thought field `thinking` — see `allama/README.md`, `allama/docs/USER_MANUAL.md`, `allama/examples/README.md`)
 - **Tag Management** (add, remove, list custom tags for models)
 - **Cache Management** (view cache statistics, clear cache)
 - **Audit Logging** (view and clear audit logs)
@@ -532,7 +532,7 @@ Security enhancements inspired by aerospace industry standards and DO-178C certi
 - **本地模型注册表**（基于 SQLite 的元数据存储）
 - **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfile 支持**（自定义配置的模型定义 DSL）
-- **REST API**（Ollama 兼容端点：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+- **REST API**（Ollama 兼容端点：/api/tags、/api/generate、/api/chat、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version；可选推理字段 `thinking` — 见 `allama/README.md`、`allama/docs/USER_MANUAL.md`、`allama/examples/README.md`）
 - **统一 AI 接口**（单一端点访问所有模型，自动路由）
 
 ### 性能
@@ -942,7 +942,7 @@ Dies ist eine sicherheitshärtete, aerospace-grade Version von [llama.cpp](https
 - **Lokales Modell-Register** (SQLite-basierte Metadatenspeicherung)
 - **Allama CLI** (Modell-Management-Befehle: pull, list, show, rm, cp, add, create, search, stats, validate, mem)
 - **Modelfile-Support** (Modell-Definition-DSL für benutzerdefinierte Konfigurationen)
-- **REST API** (Ollama-kompatible Endpunkte: /api/tags, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version)
+- **REST API** (Ollama-kompatible Endpunkte: /api/tags, /api/generate, /api/chat, /api/show, /api/delete, /api/copy, /api/ps, /api/pull, /api/version; optionales Kettenfeld `thinking` — siehe `allama/README.md`, `allama/docs/USER_MANUAL.md`, `allama/examples/README.md`)
 
 ### Leistung
 - Alle llama.cpp-Performance-Optimierungen beibehalten
@@ -1241,7 +1241,7 @@ Sicherheitsverbesserungen inspiriert von Aerospace-Industriestandards und DO-178
 - **本地模型註冊表**（基於 SQLite 的元數據存儲）
 - **Allama CLI**（模型管理命令：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfile 支持**（自定義配置的模型定義 DSL）
-- **REST API**（Ollama 兼容端點：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+- **REST API**（Ollama 兼容端點：/api/tags、/api/generate、/api/chat、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version；可選推理欄位 `thinking` — 見 `allama/README.md`、`allama/docs/USER_MANUAL.md`、`allama/examples/README.md`）
 
 ### 性能
 - 保留所有 llama.cpp 性能優化
@@ -1540,7 +1540,7 @@ MIT 許可證 - 與 [llama.cpp](https://github.com/ggml-org/llama.cpp) 相同
 - **ローカルモデルレジストリ**（SQLiteベースのメタデータストレージ）
 - **Allama CLI**（モデル管理コマンド：pull、list、show、rm、cp、add、create、search、stats、validate、mem）
 - **Modelfileサポート**（カスタム設定用のモデル定義DSL）
-- **REST API**（Ollama互換エンドポイント：/api/tags、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version）
+- **REST API**（Ollama互換エンドポイント：/api/tags、/api/generate、/api/chat、/api/show、/api/delete、/api/copy、/api/ps、/api/pull、/api/version；任意の推論フィールド `thinking` — `allama/README.md`、`allama/docs/USER_MANUAL.md`、`allama/examples/README.md` を参照）
 
 ### パフォーマンス
 - すべての llama.cpp パフォーマンス最適化を保持

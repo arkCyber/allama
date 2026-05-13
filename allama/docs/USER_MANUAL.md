@@ -597,7 +597,20 @@ To add new model routes, modify this configuration and rebuild the binary.
 - **Cause**: Network latency between services
 - **Solution**: Ensure allama serve and backend services are on the same machine
 
+### Chain-of-thought (`thinking`)
 
+For `POST /api/generate` and `POST /api/chat`, JSON responses may include an optional field **`thinking`**. It contains merged internal-reasoning segments when the raw model output used supported XML-style tag pairs; those segments are stripped from `response` / `message.content`. Implementation: `src/inference/thinking.rs`.
+
+**Examples (with unit tests, no server required):**
+
+- `examples/thinking_split_app.rs` — build chat-shaped JSON (`message` + optional `thinking`).
+- `examples/thinking_generate_response.rs` — build generate-shaped JSON (`response` + optional `thinking`) and demonstrate post-stream finalization.
+
+```bash
+cd allama
+cargo test --example thinking_split_app --features inference
+cargo test --example thinking_generate_response --features inference
+```
 
 ## Authentication
 
@@ -1469,6 +1482,27 @@ chmod 600 ~/.allama/models/*
 - Regular security assessments
 
 ## Integration Examples
+
+### Rust example programs (`examples/`)
+
+Runnable `cargo` examples and short descriptions are listed in [`examples/README.md`](../examples/README.md). Several targets ship **unit tests** (no `allama serve`, no GGUF required):
+
+| Example | Summary |
+|---------|---------|
+| `ollama_compatible_api_client` | Build `POST /api/generate` / `POST /api/chat` JSON; optional `ALLAMA_HTTP_SMOKE=1` for live `GET /api/version` and `GET /api/tags` |
+| `batch_generate_payloads` | Build many `/api/generate` bodies from stdin lines |
+| `thinking_split_app` | Split CoT tags → chat-style JSON (`message` + `thinking`) |
+| `thinking_generate_response` | Split CoT tags → generate-style JSON (`response` + `thinking`); stream buffer finalize |
+
+```bash
+cd allama
+cargo test --features inference
+cargo test --example ollama_compatible_api_client --features inference
+cargo test --example batch_generate_payloads
+cargo test --example thinking_split_app --features inference
+cargo test --example thinking_generate_response --features inference
+bash scripts/run_automated_tests.sh
+```
 
 ### Python Integration
 
@@ -3229,6 +3263,27 @@ chmod 600 ~/.allama/models/*
 - Regular security assessments
 
 ## Integration Examples
+
+### Rust example programs (`examples/`)
+
+Runnable `cargo` examples and short descriptions are listed in [`examples/README.md`](../examples/README.md). Several targets ship **unit tests** (no `allama serve`, no GGUF required):
+
+| Example | Summary |
+|---------|---------|
+| `ollama_compatible_api_client` | Build `POST /api/generate` / `POST /api/chat` JSON; optional `ALLAMA_HTTP_SMOKE=1` for live `GET /api/version` and `GET /api/tags` |
+| `batch_generate_payloads` | Build many `/api/generate` bodies from stdin lines |
+| `thinking_split_app` | Split CoT tags → chat-style JSON (`message` + `thinking`) |
+| `thinking_generate_response` | Split CoT tags → generate-style JSON (`response` + `thinking`); stream buffer finalize |
+
+```bash
+cd allama
+cargo test --features inference
+cargo test --example ollama_compatible_api_client --features inference
+cargo test --example batch_generate_payloads
+cargo test --example thinking_split_app --features inference
+cargo test --example thinking_generate_response --features inference
+bash scripts/run_automated_tests.sh
+```
 
 ### Python Integration
 
