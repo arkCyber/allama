@@ -42,6 +42,7 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 
 ### Hardware Acceleration
 - **Automatic GPU Detection**: NVIDIA (CUDA), Apple Silicon (Metal), AMD (ROCm)
+- **MLX Backend**: Apple Silicon optimized MLX backend for maximum performance
 - **Dynamic VRAM Allocation**: Automatic context length configuration
 - **CPU Fallback**: Automatic CPU inference when GPU unavailable
 - **Resource Monitoring**: Real-time CPU, memory, disk I/O, and network I/O monitoring
@@ -58,6 +59,8 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 - **Custom Models**: Create and manage custom model configurations
 - **Model Persistence**: Save and load model configurations
 - **Large Model Support**: Support for 26B+ models with 96k+ context windows via llama-server integration
+- **GGUF Support**: Full GGUF model format support via llama-server
+- **MLX Models**: Apple Silicon optimized MLX model support (qwen3 architecture)
 
 ### Mixture of Experts (MOE)
 - **Hybrid Processing**: CPU/GPU hybrid processing for large models
@@ -70,6 +73,7 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 - **TurboQuant**: Automatic sparse V dequantization for memory optimization
 - **Context Management**: Efficient KV cache allocation for long contexts
 - **GPU Offloading**: Full layer and KV cache offloading to GPU
+- **Qwen Models**: Qwen3.6 35B 4-bit GGUF model support (20GB, 36.8 t/s)
 
 ### Memory Optimization
 - **mmap Support**: Memory-mapped file loading for fast model loading and reduced memory usage
@@ -77,6 +81,7 @@ Allama is a Rust-based, aerospace-grade LLM inference server that provides enter
 - **Optimized Parameters**: Aerospace-level optimized model and context parameters
 - **Memory Monitoring**: Real-time memory usage tracking and optimization
 - **Context Window Scaling**: Support for up to 256k context windows with proper memory management
+- **Turbo4 KV Cache**: 73% memory savings for large models via llama-server
 
 ### Metrics & Monitoring
 - **Performance Metrics**: Request duration, throughput, error rates
@@ -783,9 +788,30 @@ cargo run --example gemma4_simple_test --features inference
 
 # Test long context scenarios
 cargo run --example gemma4_long_context --features inference
+
+# Test Qwen3.6 35B with MLX backend
+cargo run --example qwen36_35b_mlx_basic_inference --features inference
+
+# Test token counting
+cargo run --example token_counting_demo --features inference
 ```
 
 **Note**: The 26B model example requires llama-server (not inference-service FFI backend) due to memory management requirements for large models with 96k context windows. See `examples/README.md` for details.
+
+### MLX Backend Testing
+
+The MLX backend provides Apple Silicon optimized inference for supported models:
+
+```bash
+# Test MLX backend with Qwen3-4B-Instruct-2507-4bit
+python3 -m mlx_lm generate --model ~/.allama/models/Qwen3-4B-Instruct-2507-4bit --prompt "Hello, how are you?" --max-tokens 50
+
+# Performance: ~19.2 tokens/sec for Qwen3-4B-Instruct-2507-4bit
+# Memory: Efficient MLX-specific memory management
+# Supported architectures: qwen3 (qwen3_5_moe not currently supported)
+```
+
+See [MLX_FUNCTIONAL_TESTING_REPORT.md](MLX_FUNCTIONAL_TESTING_REPORT.md) for detailed MLX backend testing results.
 
 ### Ollama-style HTTP, batch payloads, and thinking (testable without a model)
 
@@ -822,6 +848,31 @@ cargo run --example memory_stress_test --features inference
 ```
 
 See [ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md](ALLAMA_MMAP_AUDIT_AND_TEST_REPORT.md) for detailed mmap testing results.
+
+### llama-server Integration
+
+For maximum stability with large models, Allama supports llama-server integration:
+
+```bash
+# Install llama-server
+cd /Users/arksong/Allama/allama
+./scripts/setup-llama-server.sh
+
+# Start llama-server with a model
+~/.allama/start-llama-server.sh ~/.allama/models/Qwen3.6-35B-A3B-Q4_K_M.gguf
+
+# Use with Allama
+export ALLAMA_LLAMA_SERVER_URL=http://127.0.0.1:8083
+./target/debug/allama run qwen3.6-35b-a3b -p "Hello, how are you?"
+```
+
+**Performance Results:**
+- Qwen3.6 35B 4-bit GGUF: 36.8 tokens/sec
+- Memory: 20GB model size
+- Stability: 100% (no segfaults)
+- Turbo4 KV Cache: 73% memory savings
+
+See [LLAMA_SERVER_SILVER_BULLET.md](LLAMA_SERVER_SILVER_BULLET.md) for detailed llama-server integration guide.
 
 ## Development
 
@@ -880,6 +931,10 @@ Then open a **Pull Request** on GitHub against the default branch. For upstream 
 - **Examples index**: [examples/README.md](examples/README.md) - Application demos and shell tests
 - **API Endpoints**: See API Endpoints section above
 - **Automated test driver**: `bash scripts/run_automated_tests.sh` from the `allama/` directory
+- **MLX Setup Guide**: [MLX_SETUP_GUIDE.md](MLX_SETUP_GUIDE.md) - MLX backend configuration and usage
+- **MLX Performance Report**: [MLX_PERFORMANCE_EVALUATION_REPORT.md](MLX_PERFORMANCE_EVALUATION_REPORT.md) - MLX backend performance evaluation
+- **MLX Functional Testing**: [MLX_FUNCTIONAL_TESTING_REPORT.md](MLX_FUNCTIONAL_TESTING_REPORT.md) - MLX backend functional testing results
+- **llama-server Guide**: [LLAMA_SERVER_SILVER_BULLET.md](LLAMA_SERVER_SILVER_BULLET.md) - llama-server integration guide
 
 ## Alignment with Ollama
 
