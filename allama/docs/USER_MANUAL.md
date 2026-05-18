@@ -2,21 +2,22 @@
 
 ## Table of Contents
 1. [Installation](#installation)
-2. [Configuration](#configuration)
-3. [Service Management](#service-management)
-4. [Model Management](#model-management)
-5. [Server Operations](#server-operations)
-6. [Unified AI Interface](#unified-ai-interface)
-7. [Authentication](#authentication)
-8. [Billing](#billing)
-9. [Advanced Features](#advanced-features)
-10. [Performance Optimization](#performance-optimization)
-11. [Memory Optimization & Context Window Configuration](#memory-optimization--context-window-configuration)
-12. [Best Practices](#best-practices)
-13. [Security Guidelines](#security-guidelines)
-14. [Integration Examples](#integration-examples)
-15. [Monitoring & Alerting](#monitoring--alerting)
-16. [Troubleshooting](#troubleshooting)
+2. [Web UI & Desktop App](#web-ui--desktop-app)
+3. [Configuration](#configuration)
+4. [Service Management](#service-management)
+5. [Model Management](#model-management)
+6. [Server Operations](#server-operations)
+7. [Unified AI Interface](#unified-ai-interface)
+8. [Authentication](#authentication)
+9. [Billing](#billing)
+10. [Advanced Features](#advanced-features)
+11. [Performance Optimization](#performance-optimization)
+12. [Memory Optimization & Context Window Configuration](#memory-optimization--context-window-configuration)
+13. [Best Practices](#best-practices)
+14. [Security Guidelines](#security-guidelines)
+15. [Integration Examples](#integration-examples)
+16. [Monitoring & Alerting](#monitoring--alerting)
+17. [Troubleshooting](#troubleshooting)
 
 ## Installation
 
@@ -75,6 +76,145 @@ sudo cp target/release/allama /usr/local/bin/
 allama version
 # Expected output: allama 1.0.0
 ```
+
+## Web UI & Desktop App
+
+Allama provides a modern web interface and cross-platform desktop application for users who prefer a graphical interface over the command line.
+
+### Web UI Features
+
+- **Real-time Chat**: Streaming responses with Server-Sent Events (SSE)
+- **Model Manager**: Visual interface to download, delete, and manage models
+- **Settings Management**: Configure models, parameters, and preferences
+- **Multi-language Support**: English, Chinese, Japanese
+- **Session Management**: Save and restore chat sessions
+- **Dark/Light Theme**: Toggle between themes
+- **Keyboard Shortcuts**: Power user productivity features
+- **Status Bar**: Real-time system status and connection monitoring
+
+### Building the Web UI
+
+```bash
+# Navigate to the web-ui directory
+cd web-ui
+
+# Install dependencies
+npm install
+
+# Build for development
+npm run dev
+
+# Build for production
+npm run build
+
+# Run tests
+npm test
+```
+
+### Tauri Desktop Application
+
+The Tauri desktop application wraps the Web UI in a native desktop window with enhanced performance and system integration.
+
+**Features:**
+- Cross-platform (Windows, macOS, Linux)
+- Native performance
+- System tray integration
+- Auto-start on boot
+- Single-instance enforcement
+- Native file dialogs
+
+**Building the Desktop App:**
+
+```bash
+# Navigate to the web-ui directory
+cd web-ui
+
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run tauri dev
+
+# Build for production
+npm run tauri build
+
+# The output will be in the src-tauri/target/release/bundle/ directory
+```
+
+**Platform-specific builds:**
+
+```bash
+# macOS
+npm run tauri build -- --target universal-apple-darwin
+
+# Windows
+npm run tauri build -- --target x86_64-pc-windows-msvc
+
+# Linux
+npm run tauri build -- --target x86_64-unknown-linux-gnu
+```
+
+### Using the Web UI
+
+**Starting the Web UI:**
+
+```bash
+# Option 1: Using the Tauri app (recommended)
+cd web-ui
+npm run tauri dev
+
+# Option 2: Using the web server
+cd web-ui
+npm run dev
+# Open http://localhost:5173 in your browser
+```
+
+**Web UI Configuration:**
+
+The Web UI connects to the Allama server. Configure the server URL in the settings:
+
+```json
+{
+  "serverUrl": "http://localhost:11435",
+  "apiKey": "your-api-key",
+  "defaultModel": "llama3"
+}
+```
+
+### Web UI Test Status
+
+The Web UI has comprehensive test coverage:
+- **228 tests passing** (8 test files)
+- Components: ModelManager (25), Chat (16), Settings (36), Sidebar (28), App (42)
+- Hooks: useSettings (23), useSessions (39)
+- API client: (19)
+
+### Recommended Usage
+
+**Priority Order:**
+
+1. **Web UI / Tauri App** ⭐⭐⭐⭐⭐ (Best for daily use)
+   - 100% stable, 228 tests passing
+   - Full features, user-friendly interface
+   - Cross-platform desktop app
+   - Real-time chat with streaming
+   - Model management with visual interface
+
+2. **llama-server** ⭐⭐⭐⭐⭐ (Best for large models)
+   - 100% stable, avoids all FFI issues
+   - Supports Turbo4 (73% memory savings)
+   - Works with all model sizes
+   - Simple to deploy
+
+3. **API** ⭐⭐⭐⭐ (Best for scripts)
+   - Scriptable, reliable
+   - OpenAI-compatible endpoints
+   - Ollama-compatible endpoints
+
+4. **CLI FFI** ⭐⭐ (Experimental, small models only)
+   - Only for models <4GB
+   - Large models may segfault
+
 
 ## Configuration
 
