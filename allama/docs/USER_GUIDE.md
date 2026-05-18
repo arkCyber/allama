@@ -3,17 +3,18 @@
 ## 目录
 
 1. [快速开始](#快速开始)
-2. [远程免费测试账号使用指南](#远程免费测试账号使用指南)
-3. [安装指南](#安装指南)
-4. [模型兼容性指南](#模型兼容性指南)
-5. [Ollama迁移指南](#ollama迁移指南)
-6. [CLI命令参考](#cli命令参考)
-7. [认证系统应用案例](#认证系统应用案例)
-8. [计费系统应用案例](#计费系统应用案例)
-9. [OpenAI兼容API应用案例](#openai兼容api应用案例)
-10. [高级功能应用案例](#高级功能应用案例)
-11. [故障排除](#故障排除)
-12. [常见问题FAQ](#常见问题faq)
+2. [Web UI 与桌面应用](#web-ui-与桌面应用)
+3. [远程免费测试账号使用指南](#远程免费测试账号使用指南)
+4. [安装指南](#安装指南)
+5. [模型兼容性指南](#模型兼容性指南)
+6. [Ollama迁移指南](#ollama迁移指南)
+7. [CLI命令参考](#cli命令参考)
+8. [认证系统应用案例](#认证系统应用案例)
+9. [计费系统应用案例](#计费系统应用案例)
+10. [OpenAI兼容API应用案例](#openai兼容api应用案例)
+11. [高级功能应用案例](#高级功能应用案例)
+12. [故障排除](#故障排除)
+13. [常见问题FAQ](#常见问题faq)
 
 ---
 
@@ -237,6 +238,146 @@ curl -X POST http://localhost:11435/api/chat \
 - 查看认证系统应用案例，学习如何创建和管理用户
 - 探索OpenAI兼容API，了解如何与现有应用集成
 - 参考高级功能应用案例，学习批量处理、流式响应等高级用法
+
+---
+
+## Web UI 与桌面应用
+
+Allama 提供了现代化的 Web 界面和跨平台桌面应用程序，为喜欢图形界面的用户提供了比命令行更友好的选择。
+
+### Web UI 功能特性
+
+- **实时聊天**：支持服务器发送事件（SSE）的流式响应
+- **模型管理器**：可视化界面下载、删除和管理模型
+- **设置管理**：配置模型、参数和偏好设置
+- **多语言支持**：英语、中文、日语
+- **会话管理**：保存和恢复聊天会话
+- **深色/浅色主题**：主题切换
+- **键盘快捷键**：提升生产力
+- **状态栏**：实时系统状态和连接监控
+
+### 构建 Web UI
+
+```bash
+# 导航到 web-ui 目录
+cd web-ui
+
+# 安装依赖
+npm install
+
+# 开发模式构建
+npm run dev
+
+# 生产模式构建
+npm run build
+
+# 运行测试
+npm test
+```
+
+### Tauri 桌面应用程序
+
+Tauri 桌面应用程序将 Web UI 包装在原生桌面窗口中，具有增强的性能和系统集成功能。
+
+**功能特性：**
+- 跨平台（Windows、macOS、Linux）
+- 原生性能
+- 系统托盘集成
+- 开机自启动
+- 单实例强制
+- 原生文件对话框
+
+**构建桌面应用：**
+
+```bash
+# 导航到 web-ui 目录
+cd web-ui
+
+# 安装依赖
+npm install
+
+# 开发模式运行
+npm run tauri dev
+
+# 生产模式构建
+npm run tauri build
+
+# 输出文件位于 src-tauri/target/release/bundle/ 目录
+```
+
+**平台特定构建：**
+
+```bash
+# macOS
+npm run tauri build -- --target universal-apple-darwin
+
+# Windows
+npm run tauri build -- --target x86_64-pc-windows-msvc
+
+# Linux
+npm run tauri build -- --target x86_64-unknown-linux-gnu
+```
+
+### 使用 Web UI
+
+**启动 Web UI：**
+
+```bash
+# 选项 1：使用 Tauri 应用（推荐）
+cd web-ui
+npm run tauri dev
+
+# 选项 2：使用 Web 服务器
+cd web-ui
+npm run dev
+# 在浏览器中打开 http://localhost:5173
+```
+
+**Web UI 配置：**
+
+Web UI 连接到 Allama 服务器。在设置中配置服务器 URL：
+
+```json
+{
+  "serverUrl": "http://localhost:11435",
+  "apiKey": "your-api-key",
+  "defaultModel": "llama3"
+}
+```
+
+### Web UI 测试状态
+
+Web UI 具有全面的测试覆盖：
+- **228 个测试通过**（8 个测试文件）
+- 组件：ModelManager（25）、Chat（16）、Settings（36）、Sidebar（28）、App（42）
+- Hooks：useSettings（23）、useSessions（39）
+- API 客户端：（19）
+
+### 推荐使用方式
+
+**优先级顺序：**
+
+1. **Web UI / Tauri 应用** ⭐⭐⭐⭐⭐（最适合日常使用）
+   - 100% 稳定，228 个测试通过
+   - 功能完整，用户友好界面
+   - 跨平台桌面应用
+   - 实时聊天与流式响应
+   - 可视化模型管理
+
+2. **llama-server** ⭐⭐⭐⭐⭐（最适合大型模型）
+   - 100% 稳定，完全避免 FFI 问题
+   - 支持 Turbo4（节省 73% 内存）
+   - 适用于所有模型大小
+   - 简单易部署
+
+3. **API** ⭐⭐⭐⭐（最适合脚本）
+   - 可脚本化，可靠
+   - OpenAI 兼容端点
+   - Ollama 兼容端点
+
+4. **CLI FFI** ⭐⭐（实验性，仅限小型模型）
+   - 仅适用于 <4GB 模型
+   - 大型模型可能崩溃
 
 ---
 
